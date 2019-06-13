@@ -1,6 +1,9 @@
 # chaudfontaine
 Harvest river measurements from stations in Wallonia
 
+You might find the additional information in [belleheid README.md](https://github.com/riklmr/belleheid) useful.
+
+### how
 via e-mails.
 
 better directly:
