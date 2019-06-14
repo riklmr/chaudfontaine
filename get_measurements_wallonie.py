@@ -254,15 +254,13 @@ def insert_records_measurement(X, station_code, station_type, year, month):
         ;
     """
 
-
-    print(q)
-
+    row_counter = 0
     for day in range(1, num_days + 1):
         for hour in range(1, num_hours + 1):
             # we cannot find any information on the website about timing and timezone of the reported measurements
-            # so, let's just assume/guess that all times mentioned are in localtime without DST
+            # so, let's just assume/guess that all times mentioned are in localtime (UTC+01) without DST
             # and also that each measurement reports the sum or mean aggregated over the past hour.
-            # Although, it might be that the measurement aggregates the 60 minute period AROUND the (top of the) hour...
+            # Although, I am pretty sure that the measurement aggregates the 60 minute period AROUND the (top of the) hour...
             datetime_string = "{:04d}-{:02d}-{:02d} {:02d}:00:00+01".format(year, month, day, hour)
             value = X[hour - 1, day - 1]
             if value != UNKNOWN_FLOAT:
@@ -273,10 +271,10 @@ def insert_records_measurement(X, station_code, station_type, year, month):
                     'value': value,
                     'aggr_period': 3600,
                 }
-                print(v)
                 cursor.execute(q, v)
+                row_counter += 1
     conn.commit()
-    print(f"table {table_name} created")
+    print(f"{row_counter} row(s) inserted")
     cursor.close()
     conn.close()
     print("connection closed")
