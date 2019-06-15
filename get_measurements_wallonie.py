@@ -8,6 +8,24 @@ import re
 import json
 import psycopg2
 
+# the following strings represent Walloon rivers in the Meuse Watershed
+MEUSE_WATERSHED = [
+    'AMBLEVE',
+    'CHIERS',
+    "EAU D'HEURE",
+    'GEER',
+    'GUEULE',
+    'HOYOUX',
+    'LESSE',
+    'MEUSE',
+    'OURTHE',
+    'SAMBRE',
+    'SEMOIS',
+    'VESDRE',
+    'VIERRE',
+    'VIROIN',
+]
+
 # The website *Les voies hydrauliques* encodes station types with these strings
 QUANTITY_CODES = {
     'precipitation': '0015',
@@ -15,7 +33,8 @@ QUANTITY_CODES = {
     'hauteur': '1011',
 }
 
-CONNECTION_DETAILS = "dbname='meuse' user='postgres' password='password' host='localhost' port='5333'"
+CONNECTION_DETAILS_MEASUREMENT = "dbname='meuse' user='postgres' password='password' host='localhost' port='5333'"
+CONNECTION_DETAILS_STATION = "dbname='meuse' user='postgres' password='password' host='localhost' port='5222'"
 
 UNKNOWN_FLOAT = -999999
 
@@ -37,7 +56,7 @@ def get_stations_db(station_type):
     columns = ", ".join(fields)
 
 
-    conn = psycopg2.connect(CONNECTION_DETAILS)
+    conn = psycopg2.connect(CONNECTION_DETAILS_STATION)
     cursor = conn.cursor()
     print("connected to database meuse")
 
@@ -62,11 +81,6 @@ def get_stations_db(station_type):
     conn.close()
     print("connection closed")
     return stations_df
-# stations_precipitation = get_stations_db('precipitation')
-
-# print(get_stations_db('precipitation'))
-# print(get_stations_db('hauteur'))
-# print(get_stations_db('debit'))
 
 def build_url_StatHoraireTab(station_code, station_type, year, month):
     """
@@ -171,7 +185,7 @@ def create_table_measurement():
     """
     Creates the TimescaleDB table for measurements.
     """
-    conn = psycopg2.connect(CONNECTION_DETAILS)
+    conn = psycopg2.connect(CONNECTION_DETAILS_MEASUREMENT)
     cursor = conn.cursor()
     print("connected to database meuse")
 
@@ -221,9 +235,9 @@ def insert_records_measurement(X, station_code, station_type, year, month):
     """
     [num_hours, num_days] = X.shape
     # print(pd.DataFrame(X))
-    table_name = "wallonie.measurement"
+    # table_name = "wallonie.measurement"
 
-    conn = psycopg2.connect(CONNECTION_DETAILS)
+    conn = psycopg2.connect(CONNECTION_DETAILS_MEASUREMENT)
     cursor = conn.cursor()
     print("connected to database meuse")
 
@@ -282,20 +296,53 @@ def insert_records_measurement(X, station_code, station_type, year, month):
     #
     return True
 
+def etl_station_month(station_code, station_type, year, month):
+    """
+    Performs ETL for one station (of one type) for one year-month.
+    Parameters: station_code, station_type, year, month.
+    """
+    print(station_code, station_type, year, month)
+    url = build_url_StatHoraireTab(station_code, station_type, year, month)
+    print(url)
+    soup = retrieveStatHoraireTab(url)
+    measurements_df = parseMeasurements(soup)
+    insert_records_measurement(measurements_df, station_code, station_type, year, month)
+
+def etl_meuse_month(station_type, year, month):
+    """
+    Performs ETL for all stations (of one type) in the watershed Meuse for one year-month.
+    Parameters: station_type, year, month.
+    """
+    stations_db = get_stations_db(station_type)
+    stations_meuse_db = stations_db[stations_db['river'].isin(MEUSE_WATERSHED)]
+
+    for station_code in stations_meuse_db.index:
+        print(time.time())
+        etl_station_month(station_code, station_type, year, month)
+        time.sleep(1)
+
+
 
 station_test = 1579
-type_test = 'precipitation'
+type_test = 'debit'
 year_test = 2019
-month_test = 6
+month_test = 1
+
+etl_meuse_month(type_test, year_test, month_test)
+
+
+# print(get_stations_db('precipitation'))
+# print(get_stations_db('hauteur'))
+# print(get_stations_db('debit'))
 
 # create_table_measurement()
 
 # print(station_test)
-url = build_url_StatHoraireTab(station_test, type_test, year_test, month_test)
-print(url)
-soup = retrieveStatHoraireTab(url)
+# url = build_url_StatHoraireTab(station_test, type_test, year_test, month_test)
+# print(url)
+# soup = retrieveStatHoraireTab(url)
 # print(soup)
-m = parseMeasurements(soup)
+# m = parseMeasurements(soup)
 
-insert_records_measurement(m, station_test, type_test, year_test, month_test)
+# insert_records_measurement(m, station_test, type_test, year_test, month_test)
 
