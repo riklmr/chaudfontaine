@@ -24,7 +24,7 @@ date; heure1; heure2; heure3; heure4; heure5; heure6; heure7; heure8; heure9; he
 2009-01-01; 0.654; 0.642; 0.642; 0.642; 0.642; 0.642; 0.642; 0.642; 0.629; 0.629; 0.629; 0.629; 0.629; 0.629; 0.617; 0.617; 0.617; 0.617; 0.617; 0.617; 0.617; 0.617; 0.617; 0.617; 
 2009-01-02; 0.617; 0.606; 0.606; 0.606; 0.606; 0.617; 0.617; 0.606; 0.606; 0.606; 0.606; 0.606; 0.617; 0.606; 0.606; 0.606; 0.606; 0.617; 0.617; 0.617; 0.617; 0.617; 0.617; 0.617; 
 ``` 
-The CSV reaches to the last available motnh (including).
+The CSV reaches to the last available month (including).
 
 It is doable to automate the request (see the prototypes). But the zipped CSV attachment needs to be extracted manually. Automating an e-mail scraper was too daunting for me. This method was abandoned.
 
