@@ -379,6 +379,16 @@ def makeCalendar(start_date, end_date):
     
     return calendar
 
+def all_stations_meuse(station_type):
+    """
+    Returns a list of station_code of stations in the watershed of the Meuse.
+    Parameter: station_type (string).
+    """
+    stations_db = get_stations_db(station_type)
+    stations_meuse_db = stations_db[stations_db['river'].isin(MEUSE_WATERSHED)]
+    print(f"found {len(stations_meuse_db)} stations in db in watershed Meuse")
+    return list(stations_meuse_db.index)
+
 def etl_station_month(station_code, station_type, year, month):
     """
     Performs ETL for one station (of one type) for one year-month.
@@ -395,10 +405,7 @@ def etl_meuse_month(station_type, year, month):
     Performs ETL for all stations (of one type) in the watershed Meuse for one year-month.
     Parameters: station_type, year, month.
     """
-    stations_db = get_stations_db(station_type)
-    stations_meuse_db = stations_db[stations_db['river'].isin(MEUSE_WATERSHED)]
-    print(f"found {len(stations_meuse_db)} stations in db in watershed Meuse")
-    for station_code in stations_meuse_db.index:
+    for station_code in all_stations_meuse(station_type):
         # print(time.time())
         etl_station_month(station_code, station_type, year, month)
         time.sleep(SLEEPTIME)
@@ -411,10 +418,9 @@ def etl_meuse_alltime(station_type):
 
     WARNING: this is the heaviest scraper of them all. Use wisely!
     """
-    stations_db = get_stations_db(station_type)
-    stations_meuse_db = stations_db[stations_db['river'].isin(MEUSE_WATERSHED)]
+    
 
-    for station_code in stations_meuse_db.index:
+    for station_code in all_stations_meuse(station_type):
         etl_station_alltime(station_code, station_type)
 
 def etl_station_alltime(station_code, station_type):
@@ -432,11 +438,11 @@ def etl_station_alltime(station_code, station_type):
     #
 
 station_test = 7132 # Amay/Meuse
-type_test = 'debit'
+type_test = 'precipitation'
 year_test = 2019
-month_test = 4
+month_test = 6
 
+# etl_station_month(station_test, type_test, year_test, month_test)
 # etl_station_alltime(station_test, type_test)
-etl_station_month(station_test, type_test, year_test, month_test)
-
 # etl_meuse_month(type_test, year_test, month_test)
+etl_meuse_alltime(type_test)
