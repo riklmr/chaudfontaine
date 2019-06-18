@@ -180,21 +180,56 @@ def parsePeriod(soup):
 
     return((start_date, end_date))
 
+def parseYearMonth(soup):
+    """
+    Parses soup and parses the year and month of the current table from the form.
+    Returns: Tuple of integers: (year, month)
+    """
+
+    # <form action="stathorairetab.do">
+    #   <input type="hidden" value="80630015" name="code">
+    #   <input maxlength="2" size="2" type="text" name="mois" value="01">
+    # 	<input maxlength="4" size="4" type="text" name="annee" value="2019">
+    #   <input value=" " type="submit">
+    # </form>
+    form = soup.find('form', attrs = {'action': 'stathorairetab.do'})
+    mois = form.find('input', attrs = {'name': 'mois'})
+    annee = form.find('input', attrs = {'name':'annee'})
+
+    if annee['value']:
+        year = int(annee['value'])
+    else:
+        year = None
+    if mois['value']:
+        month = int(mois['value'])
+    else:
+        month = None
+    return((year, month))
+
+
 def parseMeasurements(soup):
     """
-    Parses the passed soup and returns a 2D Numpy array
-    maintaining the measurements in the original orientation:
+    Parses the passed soup and returns a DICT
+    REPLACING the original orientation:
         d01  d02  d03  ...  d31
     h01
     h02
     ...
     h24
-
+    WITH a chronological orientation.
+    {
+        datetimestring: value,
+        ...,
+        datetimestring: value,
+    }
     Not all cells are filled for all months":
     The current month fills up as time progresses.
     All tables have 31 columns: so not all of them can be meaningfully filled.
-    The numpy array has no labels for rows or columns.
+    Some months have holes inthe data.
     """
+
+    [year_www, month_www] = parseYearMonth(soup)
+
     all_tables = soup.find_all(name='table')
 
     
@@ -215,25 +250,30 @@ def parseMeasurements(soup):
     measurements_rows = measurements_table.find_all('tr', attrs={'align':'right'})
     # we can probably assume there will always be 24 hours reported in the table
     # but we wil not grow the table any wider than necessary
-    empty_column = np.zeros((24, 1))
-    empty_column[empty_column==0] = UNKNOWN_FLOAT
+    # empty_column = np.zeros((24, 1))
+    # empty_column[empty_column==0] = UNKNOWN_FLOAT
     # print(empty_column)
-    X = empty_column
+    # X = empty_column
 
-    # iterate over the rows of the table (hours of the day)
+    X = {}
+
+    # iterate over the index of the rows in the table (hours of the day)
+    # skipping the first row containing column headers
     for hour in range(1, 25):
         row = measurements_rows[hour - 1]
         # attributes for cells differ with status of data (verified or not, for instance)
         # so we take all cells and skip the first one containing hour label (row header)
-        # then we check contents of the cell and fill/grow the array as appropriate
         measurement_cells = row.find_all('td')
+        # iterate over the index of the cells in the row (days of the month)
         for day in range(1, len(measurement_cells)):
             measurement = measurement_cells[day]
             if measurement.text:
                 # BUG: https://github.com/riklmr/chaudfontaine/issues/1
-                if day - 1 > X.shape[1] - 1:
-                    X = np.append(X, empty_column, axis=1)
-                X[hour - 1, day - 1] = float(measurement.text)
+                # if day - 1 > X.shape[1] - 1:
+                #     X = np.append(X, empty_column, axis=1)
+                # X[hour - 1, day - 1] = float(measurement.text)
+                datetime_string = "{:04d}-{:02d}-{:02d} {:02d}:00:00+01".format(year_www, month_www, day, hour)
+                X[datetime_string] = float(measurement.text)
     #
     return X
 
@@ -280,16 +320,16 @@ def create_table_measurement():
 
 def insert_records_measurement(X, station_code, station_type, year, month):
     """
-    Takes a numpy array with a month worth of measurements (hours x days),
+    Takes a dict with a month worth of measurements (created by parseMeasurements()),
     stores them in a chronological Postgres Database.
     Parameters:
-        X: np array with measurements
+        X: dict with measurements, key=datetimestring, value=float
         station_code: station by code (string or integer)
         station_type: type of the station (string, key into QUANTITY_CODES)
         year: (string or integer)
         month: (string or integer)
     """
-    [num_hours, num_days] = X.shape
+    # [num_hours, num_days] = X.shape
     # print(pd.DataFrame(X))
     # table_name = "wallonie.measurement"
 
@@ -326,24 +366,36 @@ def insert_records_measurement(X, station_code, station_type, year, month):
 
     row_counter = 0
 
-    for day in range(1, num_days + 1):
-        for hour in range(1, num_hours + 1):
-            # we cannot find any information on the website about timing and timezone of the reported measurements
-            # so, let's just assume/guess that all times mentioned are in localtime (UTC+01) without DST
-            # and also that each measurement reports the sum or mean aggregated over the past hour.
-            # Although, I am pretty sure that the measurement aggregates the 60 minute period AROUND the (top of the) hour...
-            datetime_string = "{:04d}-{:02d}-{:02d} {:02d}:00:00+01".format(year, month, day, hour)
-            value = X[hour - 1, day - 1]
-            if value != UNKNOWN_FLOAT:
-                v = {
-                    'datetime': datetime_string,
-                    'station_code': station_code,
-                    'quantity': station_type,
-                    'value': value,
-                    'aggr_period': 3600,
-                }
-                cursor.execute(q, v)
-                row_counter += 1
+    # for day in range(1, num_days + 1):
+    #     for hour in range(1, num_hours + 1):
+    #         # we cannot find any information on the website about timing and timezone of the reported measurements
+    #         # so, let's just assume/guess that all times mentioned are in localtime (UTC+01) without DST
+    #         # and also that each measurement reports the sum or mean aggregated over the past hour.
+    #         # Although, I am pretty sure that the measurement aggregates the 60 minute period AROUND the (top of the) hour...
+    #         datetime_string = "{:04d}-{:02d}-{:02d} {:02d}:00:00+01".format(year, month, day, hour)
+    #         value = X[hour - 1, day - 1]
+    #         if value != UNKNOWN_FLOAT:
+    #             v = {
+    #                 'datetime': datetime_string,
+    #                 'station_code': station_code,
+    #                 'quantity': station_type,
+    #                 'value': value,
+    #                 'aggr_period': 3600,
+    #             }
+    #             cursor.execute(q, v)
+    #             row_counter += 1
+
+    for datetime_string in X.keys():
+        v = {
+            'datetime': datetime_string,
+            'station_code': station_code,
+            'quantity': station_type,
+            'value': X[datetime_string],
+            'aggr_period': 3600,
+        }
+        cursor.execute(q, v)
+        row_counter += 1
+
     conn.commit()
     print(f"{row_counter} row(s) inserted")
 
@@ -398,8 +450,9 @@ def etl_station_month(station_code, station_type, year, month):
     url = build_url_StatHoraireTab(station_code, station_type, year, month)
     print(station_code, station_type, year, month, url)
     soup = retrieveStatHoraireTab(url)
-    measurements_df = parseMeasurements(soup)
-    insert_records_measurement(measurements_df, station_code, station_type, year, month)
+    measurements_dict = parseMeasurements(soup)
+    print(measurements_dict)
+    insert_records_measurement(measurements_dict, station_code, station_type, year, month)
 
 def etl_meuse_month(station_type, year, month):
     """
@@ -442,6 +495,13 @@ station_test = 5284
 type_test = 'precipitation'
 year_test = 2009
 month_test = 1
+
+# url = build_url_StatHoraireTab(station_test, type_test, year=year_test, month=month_test)
+# print(url)
+# soup = retrieveStatHoraireTab(url)
+# [year, month] = parseYearMonth(soup)
+
+# print(year, month)
 
 etl_station_month(station_test, type_test, year_test, month_test)
 # etl_station_alltime(station_test, type_test)
