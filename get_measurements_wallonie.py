@@ -230,6 +230,7 @@ def parseMeasurements(soup):
         for day in range(1, len(measurement_cells)):
             measurement = measurement_cells[day]
             if measurement.text:
+                # BUG: https://github.com/riklmr/chaudfontaine/issues/1
                 if day - 1 > X.shape[1] - 1:
                     X = np.append(X, empty_column, axis=1)
                 X[hour - 1, day - 1] = float(measurement.text)
@@ -437,12 +438,12 @@ def etl_station_alltime(station_code, station_type):
         time.sleep(SLEEPTIME)
     #
 
-station_test = 7132 # Amay/Meuse
+station_test = 5284 
 type_test = 'precipitation'
-year_test = 2019
-month_test = 6
+year_test = 2009
+month_test = 1
 
-# etl_station_month(station_test, type_test, year_test, month_test)
+etl_station_month(station_test, type_test, year_test, month_test)
 # etl_station_alltime(station_test, type_test)
 # etl_meuse_month(type_test, year_test, month_test)
-etl_meuse_alltime(type_test)
+# etl_meuse_alltime(type_test)
