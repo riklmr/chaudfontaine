@@ -428,7 +428,7 @@ def etl_station_alltime(station_code, station_type):
     Performs ETL on one station, for all available year/months.
     Parameters: station_code (int or str), station_type (str).
     """
-    url = build_url_StatHoraireTab(station_test, type_test)
+    url = build_url_StatHoraireTab(station_code, station_type)
     soup = retrieveStatHoraireTab(url)
     [start_date, end_date] = parsePeriod(soup)
     calendar = makeCalendar(start_date, end_date)
