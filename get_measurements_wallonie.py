@@ -11,19 +11,45 @@ import psycopg2
 # the following strings represent Walloon rivers in the Meuse Watershed
 MEUSE_WATERSHED = [
     'AMBLEVE',
+    'BOCQ',
+    'BROUFFE',
     'CHIERS',
+    'EAU BLANCHE',
     "EAU D'HEURE",
+    'EAU NOIRE',
+    'FLAVION',
     'GEER',
     'GUEULE',
+    'HANTES',
+    'HERMETON',
+    'HOEGNE',
+    'HOLZWARCHE',
+    'HOUILLE',
     'HOYOUX',
     'LESSE',
+    'LHOMME',
+    'LIENNE',
+    'MEHAIGNE',
     'MEUSE',
+    'MOLIGNEE',
     'OURTHE',
+    'PIETON',
+    "RY D'ERPION",
+    "RY D'YVES",
+    "RY DE ROME",
+    'RY DE SOUMOY',
+    'RY ERMITAGE',
+    'RY FONT AUX SERPENTS',
+    'RY JAUNE',
+    'RY PERNELLE',
     'SAMBRE',
     'SEMOIS',
+    'THURE',
     'VESDRE',
     'VIERRE',
     'VIROIN',
+    'WARCHE',
+    'WARCHENNE'
 ]
 
 # The website *Les voies hydrauliques* encodes station types with these strings
@@ -36,6 +62,8 @@ QUANTITY_CODES = {
     'debit': '1002',
     'hauteur': '1011',
 }
+
+SLEEPTIME = 0.5 # seconds
 
 CONNECTION_DETAILS_MEASUREMENT = "dbname='meuse' user='postgres' password='password' host='localhost' port='5333'"
 CONNECTION_DETAILS_STATION = "dbname='meuse' user='postgres' password='password' host='localhost' port='5222'"
@@ -62,9 +90,9 @@ def get_stations_db(station_type):
 
     conn = psycopg2.connect(CONNECTION_DETAILS_STATION)
     cursor = conn.cursor()
-    print("connected to database meuse")
+    # print("connected to database meuse")
 
-    print("start selecting stations")
+    # print("start selecting stations")
     q = f"""
         SELECT {columns} FROM {table_name}
         ORDER BY {fields[0]} ASC
@@ -73,9 +101,9 @@ def get_stations_db(station_type):
     cursor.execute(q)
 
     conn.commit()
-    print("row(s) retrieved")
 
     stations_list = cursor.fetchall()
+    print(f"{len(stations_list)} stations(s) retrieved")
     stations_df = pd.DataFrame(columns=fields, data=stations_list)
     stations_df.set_index('code', inplace=True)
 
@@ -83,7 +111,7 @@ def get_stations_db(station_type):
 
     cursor.close()
     conn.close()
-    print("connection closed")
+    # print("connection closed")
     return stations_df
 
 def build_url_StatHoraireTab(station_code, station_type, year=None, month=None):
@@ -194,7 +222,7 @@ def parseMeasurements(soup):
 
     # iterate over the rows of the table (hours of the day)
     for hour in range(1, 25):
-        row = measurements_rows[hour]
+        row = measurements_rows[hour - 1]
         # attributes for cells differ with status of data (verified or not, for instance)
         # so we take all cells and skip the first one containing hour label (row header)
         # then we check contents of the cell and fill/grow the array as appropriate
@@ -266,9 +294,9 @@ def insert_records_measurement(X, station_code, station_type, year, month):
 
     conn = psycopg2.connect(CONNECTION_DETAILS_MEASUREMENT)
     cursor = conn.cursor()
-    print("connected to database meuse")
+    # print("connected to database meuse")
 
-    print("start inserting/updating measurements")
+    # print("start inserting/updating measurements")
     # into = ['datetime', 'station_code', 'quantity', 'value', 'aggr_period']
     # values = ["%(datetime)s", "%(station_code)s", "%(quantity)s", "%(value)s", "%(aggr_period)s"]
     # update = []
@@ -296,6 +324,7 @@ def insert_records_measurement(X, station_code, station_type, year, month):
     """
 
     row_counter = 0
+
     for day in range(1, num_days + 1):
         for hour in range(1, num_hours + 1):
             # we cannot find any information on the website about timing and timezone of the reported measurements
@@ -304,6 +333,7 @@ def insert_records_measurement(X, station_code, station_type, year, month):
             # Although, I am pretty sure that the measurement aggregates the 60 minute period AROUND the (top of the) hour...
             datetime_string = "{:04d}-{:02d}-{:02d} {:02d}:00:00+01".format(year, month, day, hour)
             value = X[hour - 1, day - 1]
+            value_counter += 1
             if value != UNKNOWN_FLOAT:
                 v = {
                     'datetime': datetime_string,
@@ -316,9 +346,10 @@ def insert_records_measurement(X, station_code, station_type, year, month):
                 row_counter += 1
     conn.commit()
     print(f"{row_counter} row(s) inserted")
+
     cursor.close()
     conn.close()
-    print("connection closed")
+    # print("connection closed")
 
     #
     return True
@@ -354,9 +385,8 @@ def etl_station_month(station_code, station_type, year, month):
     Performs ETL for one station (of one type) for one year-month.
     Parameters: station_code, station_type, year, month.
     """
-    print(station_code, station_type, year, month)
     url = build_url_StatHoraireTab(station_code, station_type, year, month)
-    print(url)
+    print(station_code, station_type, year, month, url)
     soup = retrieveStatHoraireTab(url)
     measurements_df = parseMeasurements(soup)
     insert_records_measurement(measurements_df, station_code, station_type, year, month)
@@ -368,11 +398,11 @@ def etl_meuse_month(station_type, year, month):
     """
     stations_db = get_stations_db(station_type)
     stations_meuse_db = stations_db[stations_db['river'].isin(MEUSE_WATERSHED)]
-
+    print(f"found {len(stations_meuse_db)} stations in db in watershed Meuse")
     for station_code in stations_meuse_db.index:
-        print(time.time())
+        # print(time.time())
         etl_station_month(station_code, station_type, year, month)
-        time.sleep(1)
+        time.sleep(SLEEPTIME)
 
 def etl_meuse_alltime(station_type):
     """
@@ -394,19 +424,20 @@ def etl_station_alltime(station_code, station_type):
     Parameters: station_code (int or str), station_type (str).
     """
     url = build_url_StatHoraireTab(station_test, type_test)
-    print(url)
     soup = retrieveStatHoraireTab(url)
     [start_date, end_date] = parsePeriod(soup)
     calendar = makeCalendar(start_date, end_date)
     for (year, month) in calendar:
-        print(time.time())
         etl_station_month(station_code, station_type, year, month)
-        time.sleep(1)
+        time.sleep(SLEEPTIME)
     #
 
 station_test = 7132 # Amay/Meuse
 type_test = 'debit'
-year_test = None
-month_test = None
+year_test = 2019
+month_test = 4
 
-etl_station_alltime(station_test, type_test)
+# etl_station_alltime(station_test, type_test)
+etl_station_month(station_test, type_test, year_test, month_test)
+
+# etl_meuse_month(type_test, year_test, month_test)
