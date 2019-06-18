@@ -243,8 +243,8 @@ def parseMeasurements(soup):
     
     # measurements_table = all_tables.find('table', attrs={'cellspacing':'2', 'cellpadding':'2',  'border':'0', 'width':'100%'})
 
-    # Issue #2?
-    measurements_table = all_tables[4]
+    # Issue #3 https://github.com/riklmr/chaudfontaine/issues/3
+    measurements_table = all_tables[-2]
     # print(measurements_table)
 
     # we do not check if this table actually is there at all
@@ -503,20 +503,20 @@ def etl_station_alltime(station_code, station_type):
         time.sleep(SLEEPTIME)
     #
 
-station_test = 5284 
-type_test = 'precipitation'
+# example combos:
+# hauteur: 2536
+# debit: 6526
+# precipitation: 5649
+
+station_test = 2536 
+type_test = 'hauteur'
 year_test = 2009
-month_test = 1
-
-# url = build_url_StatHoraireTab(station_test, type_test, year=year_test, month=month_test)
-# print(url)
-# soup = retrieveStatHoraireTab(url)
-# [year, month] = parseYearMonth(soup)
-
-# print(year, month)
+month_test = 2
 
 # etl_station_month(station_test, type_test, year_test, month_test)
+
 # etl_station_alltime(station_test, type_test)
+
 for type_test in QUANTITY_CODES.keys():
-    etl_meuse_month(type_test, year_test, month_test)
-# etl_meuse_alltime(type_test)
+    # etl_meuse_month(type_test, year_test, month_test)
+    etl_meuse_alltime(type_test)
