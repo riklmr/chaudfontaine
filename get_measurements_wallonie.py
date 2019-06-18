@@ -242,6 +242,8 @@ def parseMeasurements(soup):
 
     
     # measurements_table = all_tables.find('table', attrs={'cellspacing':'2', 'cellpadding':'2',  'border':'0', 'width':'100%'})
+
+    # Issue #2?
     measurements_table = all_tables[4]
     # print(measurements_table)
 
