@@ -333,7 +333,6 @@ def insert_records_measurement(X, station_code, station_type, year, month):
             # Although, I am pretty sure that the measurement aggregates the 60 minute period AROUND the (top of the) hour...
             datetime_string = "{:04d}-{:02d}-{:02d} {:02d}:00:00+01".format(year, month, day, hour)
             value = X[hour - 1, day - 1]
-            value_counter += 1
             if value != UNKNOWN_FLOAT:
                 v = {
                     'datetime': datetime_string,
