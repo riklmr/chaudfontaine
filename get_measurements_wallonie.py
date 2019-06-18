@@ -87,17 +87,19 @@ def build_url_StatHoraireTab(station_code, station_type, year, month):
     Returns the URL for the correct page, given:
     station by code (string or integer)
     type of the station (string, key into QUANTITY_CODES)
-    year (string or integer)
-    month (string or integer)
+    year (string or integer or None for current year)
+    month (string or integer or None for current year)
     """
     url = 'http://voies-hydrauliques.wallonie.be/opencms/opencms/fr/hydro/Archive/annuaires/stathorairetab.do'
     url += '?code='
     url += str(station_code)
     url += str(QUANTITY_CODES[station_type])
-    url += '&annee='
-    url += str(year)
-    url += '&mois='
-    url += str(month)
+    if(year):
+        url += '&annee='
+        url += str(year)
+    if(month):
+        url += '&mois='
+        url += str(month)
     url += '&xt=prt'
     return url
 
@@ -124,6 +126,29 @@ def retrieveStatHoraireTab(url):
         # parse the sauce into soup
         soup = bs.BeautifulSoup(sauce, 'lxml')
     return soup
+
+def parsePeriod(soup):
+    """
+    Parses the passed soup and returns the period of available data for this station 
+    as a tuple of two dates (ISO strings).
+    """
+    all_tables = soup.find_all(name='table')
+
+    print(len(all_tables))
+
+    # periodic_table = all_tables.find('table', attrs={'cellspacing':'2', 'cellpadding':'2',  'border':'0', 'width':'100%'})
+    periodic_table = all_tables[2]
+    # this table has just one row
+    periodic_row = periodic_table.find('tr')
+    # with four cells
+    periodic_cell = periodic_row.find_all('td')[2]
+
+    # <td nowrap="" width="25%">Période : 01/2002 - 06/2019</td>
+    [[start_month, start_year], [end_month, end_year]] = re.findall(r"(\d\d)\/(\d\d\d\d)", periodic_cell.text)
+    start_date = "{:4}/{:2}/01 00:00:00+01".format(start_year, start_month)
+    end_date = "{:4}/{:2}/01 00:00:00+01".format(end_year, end_month)
+
+    return (start_date, end_date)
 
 def parseMeasurements(soup):
     """
@@ -324,11 +349,16 @@ def etl_meuse_month(station_type, year, month):
 
 
 station_test = 1579
-type_test = 'debit'
-year_test = 2019
-month_test = 1
+type_test = 'precipitation'
+year_test = None
+month_test = None
 
-etl_meuse_month(type_test, year_test, month_test)
+url = build_url_StatHoraireTab(station_test, type_test, year_test, month_test)
+print(url)
+soup = retrieveStatHoraireTab(url)
+print(parsePeriod(soup))
+
+# etl_meuse_month(type_test, year_test, month_test)
 
 
 # print(get_stations_db('precipitation'))
