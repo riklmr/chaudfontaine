@@ -134,8 +134,6 @@ def parsePeriod(soup):
     """
     all_tables = soup.find_all(name='table')
 
-    print(len(all_tables))
-
     # periodic_table = all_tables.find('table', attrs={'cellspacing':'2', 'cellpadding':'2',  'border':'0', 'width':'100%'})
     periodic_table = all_tables[2]
     # this table has just one row
@@ -148,7 +146,7 @@ def parsePeriod(soup):
     start_date = "{:4}/{:2}/01 00:00:00+01".format(start_year, start_month)
     end_date = "{:4}/{:2}/01 00:00:00+01".format(end_year, end_month)
 
-    return (start_date, end_date)
+    return((start_date, end_date))
 
 def parseMeasurements(soup):
     """
@@ -321,6 +319,33 @@ def insert_records_measurement(X, station_code, station_type, year, month):
     #
     return True
 
+def makeCalendar(start_date, end_date):
+    """
+    Returns a list of tuples (year as int, month as int) containing 
+    all year/month combinations between start_date and end_date, including.
+    Parameters: start_date, end_date as ISO strings.
+    """
+    [[start_year, start_month]] = re.findall(r"^(\d\d\d\d)\/(\d\d)\/", start_date)
+    [[end_year, end_month]] = re.findall(r"^(\d\d\d\d)\/(\d\d)\/", end_date)
+
+    calendar = []
+
+    # start year may not be complete, so start at start_month
+    for month in range(int(start_month), 13):
+        calendar.append( (int(start_year), month) )
+    
+    # intervening years are complete, so start with 1, end with 12
+    for year in range(int(start_year) + 1, int(end_year)):
+        for month in range(1, 13):
+            calendar.append( (year, month) )
+
+    # end_year may not be complete (most likely this is the current year)
+    for month in range(1, int(end_month) + 1):
+        calendar.append( (int(end_year), month) )
+    
+    return calendar
+
+
 def etl_station_month(station_code, station_type, year, month):
     """
     Performs ETL for one station (of one type) for one year-month.
@@ -356,7 +381,8 @@ month_test = None
 url = build_url_StatHoraireTab(station_test, type_test, year_test, month_test)
 print(url)
 soup = retrieveStatHoraireTab(url)
-print(parsePeriod(soup))
+[start_date, end_date] = parsePeriod(soup)
+print(makeCalendar(start_date, end_date))
 
 # etl_meuse_month(type_test, year_test, month_test)
 
