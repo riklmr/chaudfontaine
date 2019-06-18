@@ -206,6 +206,14 @@ def parseYearMonth(soup):
         month = None
     return((year, month))
 
+def access_authorized(soup):
+    access = True
+    # <h1>Accès non autorisé</h1>
+    headings = soup.find_all('h1')
+    for h1 in headings:
+        if re.search(r'Accès non autorisé', h1.text):
+            access = False
+    return(access)
 
 def parseMeasurements(soup):
     """
@@ -450,9 +458,11 @@ def etl_station_month(station_code, station_type, year, month):
     url = build_url_StatHoraireTab(station_code, station_type, year, month)
     print(station_code, station_type, year, month, url)
     soup = retrieveStatHoraireTab(url)
-    measurements_dict = parseMeasurements(soup)
-    print(measurements_dict)
-    insert_records_measurement(measurements_dict, station_code, station_type, year, month)
+    if access_authorized(soup):
+        measurements_dict = parseMeasurements(soup)
+        insert_records_measurement(measurements_dict, station_code, station_type, year, month)
+    else:
+        print(station_code, "access not authorized", url)
 
 def etl_meuse_month(station_type, year, month):
     """
@@ -503,7 +513,8 @@ month_test = 1
 
 # print(year, month)
 
-etl_station_month(station_test, type_test, year_test, month_test)
+# etl_station_month(station_test, type_test, year_test, month_test)
 # etl_station_alltime(station_test, type_test)
-# etl_meuse_month(type_test, year_test, month_test)
+for type_test in QUANTITY_CODES.keys():
+    etl_meuse_month(type_test, year_test, month_test)
 # etl_meuse_alltime(type_test)
