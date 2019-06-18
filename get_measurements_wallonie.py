@@ -27,6 +27,10 @@ MEUSE_WATERSHED = [
 ]
 
 # The website *Les voies hydrauliques* encodes station types with these strings
+
+## What is code 9002? Perhapsa debit that is not in the archive?
+# example Vise: http://voies-hydrauliques.wallonie.be/opencms/opencms/fr/hydro/Actuelle/crue/mesure.jsp?code=54519002
+
 QUANTITY_CODES = {
     'precipitation': '0015',
     'debit': '1002',
@@ -82,7 +86,7 @@ def get_stations_db(station_type):
     print("connection closed")
     return stations_df
 
-def build_url_StatHoraireTab(station_code, station_type, year, month):
+def build_url_StatHoraireTab(station_code, station_type, year=None, month=None):
     """
     Returns the URL for the correct page, given:
     station by code (string or integer)
@@ -330,7 +334,7 @@ def makeCalendar(start_date, end_date):
 
     calendar = []
 
-    # start year may not be complete, so start at start_month
+    # start_year may not be complete, so start at start_month
     for month in range(int(start_month), 13):
         calendar.append( (int(start_year), month) )
     
@@ -344,7 +348,6 @@ def makeCalendar(start_date, end_date):
         calendar.append( (int(end_year), month) )
     
     return calendar
-
 
 def etl_station_month(station_code, station_type, year, month):
     """
@@ -371,34 +374,39 @@ def etl_meuse_month(station_type, year, month):
         etl_station_month(station_code, station_type, year, month)
         time.sleep(1)
 
+def etl_meuse_alltime(station_type):
+    """
+    Performs ETL for all stations (of one type) in the watershed Meuse 
+    for all available year-months (of each station).
+    Parameter: station_type.
 
+    WARNING: this is the heaviest scraper of them all. Use wisely!
+    """
+    stations_db = get_stations_db(station_type)
+    stations_meuse_db = stations_db[stations_db['river'].isin(MEUSE_WATERSHED)]
 
-station_test = 1579
-type_test = 'precipitation'
+    for station_code in stations_meuse_db.index:
+        etl_station_alltime(station_code, station_type)
+
+def etl_station_alltime(station_code, station_type):
+    """
+    Performs ETL on one station, for all available year/months.
+    Parameters: station_code (int or str), station_type (str).
+    """
+    url = build_url_StatHoraireTab(station_test, type_test)
+    print(url)
+    soup = retrieveStatHoraireTab(url)
+    [start_date, end_date] = parsePeriod(soup)
+    calendar = makeCalendar(start_date, end_date)
+    for (year, month) in calendar:
+        print(time.time())
+        etl_station_month(station_code, station_type, year, month)
+        time.sleep(1)
+    #
+
+station_test = 7132 # Amay/Meuse
+type_test = 'debit'
 year_test = None
 month_test = None
 
-url = build_url_StatHoraireTab(station_test, type_test, year_test, month_test)
-print(url)
-soup = retrieveStatHoraireTab(url)
-[start_date, end_date] = parsePeriod(soup)
-print(makeCalendar(start_date, end_date))
-
-# etl_meuse_month(type_test, year_test, month_test)
-
-
-# print(get_stations_db('precipitation'))
-# print(get_stations_db('hauteur'))
-# print(get_stations_db('debit'))
-
-# create_table_measurement()
-
-# print(station_test)
-# url = build_url_StatHoraireTab(station_test, type_test, year_test, month_test)
-# print(url)
-# soup = retrieveStatHoraireTab(url)
-# print(soup)
-# m = parseMeasurements(soup)
-
-# insert_records_measurement(m, station_test, type_test, year_test, month_test)
-
+etl_station_alltime(station_test, type_test)
