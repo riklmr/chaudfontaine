@@ -42,5 +42,14 @@ The usual: pandas, time, json, urllib, re.
 
 Also: Beautiful Soup (bs4), Postgres client (psycopg2).
 
+## Usage
+This script has no commandline parameters. Edit the constants or test code to suit your needs.
+
+Most output is to STDOUT. Code is slowly changing error to print to STDERR.
+
+Retrieving 240 year-months for one station takes about 7 minutes (using SLEEPTIME = 0.4).
+This would probably improve a lot if we bunched up all records to insert into the DB and perform one single SQL command. 
+However, we do not want to overload the scraped webserver, so slowly we plough through the data field.
+
 # Known issues
 Clear!
