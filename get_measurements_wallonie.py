@@ -65,7 +65,6 @@ QUANTITY_CODES = {
 }
 
 SLEEPTIME = 0.4 # seconds
-EARLIEST_YEAR = 2000
 
 CONNECTION_DETAILS_MEASUREMENT = "dbname='meuse' user='postgres' password='password' host='localhost' port='5333'"
 CONNECTION_DETAILS_STATION = "dbname='meuse' user='postgres' password='password' host='localhost' port='5222'"
@@ -504,7 +503,7 @@ def process_station_month(station_code, station_type, year, month, cover=['bare'
     if coverage_df.empty:
         coverage = 'unknown'
     else:
-        coverage = coverage_df.iloc[0,0].values
+        coverage = coverage_df.iloc[0,0]
     #
     if coverage in cover:
         coverage = etl_station_month(station_code, station_type, year, month)
@@ -525,7 +524,7 @@ def etl_meuse_month(station_type, year, month):
     for station_code in all_stations_meuse(station_type):
         process_station_month(station_code, station_type, year, month)
 
-def etl_meuse_alltime(station_type):
+def etl_meuse_alltime(station_type, earliest_year=2008):
     """
     Performs ETL for all stations (of one type) in the watershed Meuse 
     for all available year-months (of each station).
@@ -538,7 +537,7 @@ def etl_meuse_alltime(station_type):
         data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
     #
 
-def etl_station_alltime(station_code, station_type):
+def etl_station_alltime(station_code, station_type, earliest_year=1990):
     """
     Performs ETL on one station, for all available year/months.
     Parameters: station_code (int or str), station_type (str).
@@ -547,7 +546,7 @@ def etl_station_alltime(station_code, station_type):
     soup = retrieveStatHoraireTab(url)
     if soup:
         [start_date, end_date] = parsePeriod(soup)
-        calendar = makeCalendar(start_date, end_date, earliest_year=EARLIEST_YEAR)
+        calendar = makeCalendar(start_date, end_date, earliest_year=earliest_year)
         for (year, month) in calendar:
             process_station_month(station_code, station_type, year, month)
     else:
@@ -573,7 +572,7 @@ def recover_crashed_run():
             url = build_url_StatHoraireTab(station_code, station_type)
             soup = retrieveStatHoraireTab(url)
             [start_date, end_date] = parsePeriod(soup)
-            calendar = makeCalendar(start_date, end_date, earliest_year=EARLIEST_YEAR)
+            calendar = makeCalendar(start_date, end_date, earliest_year=2000)
             for (year, month) in calendar:        
                 daco.append( {
                     'station_code': station_code,
@@ -598,10 +597,10 @@ month_test = 6
 
 # process_station_month(station_test, type_test, year_test, month_test, cover=['bare', 'unknown', 'incomplete'])
 
-etl_station_alltime(station_test, type_test)
+# etl_station_alltime(station_test, type_test, earliest_year=2000)
 
-# for station_type in QUANTITY_CODES.keys():
-#     etl_meuse_alltime(station_type)
+for station_type in QUANTITY_CODES.keys():
+    etl_meuse_alltime(station_type, earliest_year=2000)
  
 data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
 
