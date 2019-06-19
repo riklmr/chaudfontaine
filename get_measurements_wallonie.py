@@ -547,15 +547,15 @@ def process_station_alltime(station_code, station_type):
 
 station_test = 5572
 type_test = 'debit'
-year_test = 2019
-month_test = 6
+year_test = 2017
+month_test = 1
 
 # process_station_month(station_test, type_test, year_test, month_test, cover=['bare', 'unknown', 'incomplete'])
 
-process_station_alltime(station_test, type_test)
+# process_station_alltime(station_test, type_test)
 
-# for station_type in QUANTITY_CODES.keys():
-#     process_meuse_alltime(station_type)
+for station_type in QUANTITY_CODES.keys():
+    process_meuse_alltime(station_type)
  
 data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
 
