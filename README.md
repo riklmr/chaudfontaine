@@ -42,3 +42,6 @@ The usual: pandas, time, json, urllib, re.
 
 Also: Beautiful Soup (bs4), Postgres client (psycopg2).
 
+# Known issues
+1. chaudfontaine does not handle http errors gracefully.
+2. chaudfontaine has no way of logging errors or successes, so we cannot pick up were we crashed a long scrape.
