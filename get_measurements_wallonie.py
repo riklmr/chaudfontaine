@@ -424,7 +424,6 @@ def makeCalendar(start_date, end_date, earliest_year=1950):
     Parameters: start_date, end_date as ISO strings.
     earliest_year (int): indicates the earliest year we want to scrape
         this prevents scraping of VERY DEEP archives
-    TODO: parameter max_age to limit how far back into history we need to look
     """
     [[start_year, start_month]] = re.findall(r"^(\d\d\d\d)\/(\d\d)\/", start_date)
     [[end_year, end_month]] = re.findall(r"^(\d\d\d\d)\/(\d\d)\/", end_date)
