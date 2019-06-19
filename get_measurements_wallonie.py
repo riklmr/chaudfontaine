@@ -265,32 +265,14 @@ def parseMeasurements(soup):
 
     all_tables = soup.find_all(name='table')
 
-    
-    # measurements_table = all_tables.find('table', attrs={'cellspacing':'2', 'cellpadding':'2',  'border':'0', 'width':'100%'})
-
-    # Issue #3 https://github.com/riklmr/chaudfontaine/issues/3
+    # resolved Issue #3 https://github.com/riklmr/chaudfontaine/issues/3
     measurements_table = all_tables[-2]
-    # print(measurements_table)
-
     # we do not check if this table actually is there at all
 
-    # # find the header row containing the days of the month
-    # header_row = measurements_table.find('tr', attrs={'align':'center'})
-    # header_cells = header_row.find_all('th', attrs={'class':'statmois'})
-    # days = [cell.text for cell in header_cells]
-    # print(days)
-
-    # as it turns out: the table always has 31 columns, not all of them are filled with a measurement
+    # setup the empty dict X
+    X = {}
 
     measurements_rows = measurements_table.find_all('tr', attrs={'align':'right'})
-    # we can probably assume there will always be 24 hours reported in the table
-    # but we wil not grow the table any wider than necessary
-    # empty_column = np.zeros((24, 1))
-    # empty_column[empty_column==0] = UNKNOWN_FLOAT
-    # print(empty_column)
-    # X = empty_column
-
-    X = {}
 
     # iterate over the index of the rows in the table (hours of the day)
     # skipping the first row containing column headers
@@ -303,12 +285,15 @@ def parseMeasurements(soup):
         for day in range(1, len(measurement_cells)):
             measurement = measurement_cells[day]
             if measurement.text:
-                # BUG: https://github.com/riklmr/chaudfontaine/issues/1
-                # if day - 1 > X.shape[1] - 1:
-                #     X = np.append(X, empty_column, axis=1)
-                # X[hour - 1, day - 1] = float(measurement.text)
                 datetime_string = "{:04d}-{:02d}-{:02d} {:02d}:00:00+01".format(year_www, month_www, day, hour)
-                X[datetime_string] = float(measurement.text)
+
+                # github issue #5
+                if re.search(r"[\*]", measurement.text ):
+                    # string contains non-numerical chars that we associate with special circumstances (like annotated values)
+                    # not a problem, we accept these values but we need to remove the non-numerical chars
+                    X[datetime_string] = float(measurement.text.replace('*', ''))
+                else:
+                    X[datetime_string] = float(measurement.text)
     #
     return X
 
@@ -517,7 +502,7 @@ def process_station_month(station_code, station_type, year, month, cover=['bare'
     #
     data_coverage.loc[station_type_year_month, ['coverage']] = coverage
 
-def etl_meuse_month(station_type, year, month):
+def process_meuse_month(station_type, year, month):
     """
     Performs ETL for all stations (of one type) in the watershed Meuse for one year-month.
     Parameters: station_type, year, month.
@@ -525,7 +510,7 @@ def etl_meuse_month(station_type, year, month):
     for station_code in all_stations_meuse(station_type):
         process_station_month(station_code, station_type, year, month)
 
-def etl_meuse_alltime(station_type):
+def process_meuse_alltime(station_type):
     """
     Performs ETL for all stations (of one type) in the watershed Meuse 
     for all available year-months (of each station).
@@ -534,11 +519,11 @@ def etl_meuse_alltime(station_type):
     WARNING: this is the heaviest scraper of them all. Use wisely!
     """
     for station_code in all_stations_meuse(station_type):
-        etl_station_alltime(station_code, station_type)
+        process_station_alltime(station_code, station_type)
         data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
     #
 
-def etl_station_alltime(station_code, station_type):
+def process_station_alltime(station_code, station_type):
     """
     Performs ETL on one station, for all available year/months.
     Parameters: station_code (int or str), station_type (str).
@@ -554,37 +539,6 @@ def etl_station_alltime(station_code, station_type):
         print("no soup found, no calendar created for", station_code, station_type, file=sys.stderr)
     #
 
-def recover_crashed_run():
-    # helper code to recover data status from last crashed run
-    # we know where it crashed:
-    crashed_type = 'precipitation'
-    crashed_station = 9596
-
-    # set up empty list of dicts
-    daco = []
-    # as we follow the footsteps of the crashed run, we can assume all station/type/year/months are covered
-    # up until we encounter the crashed station/type
-    data_status = 'covered'
-    for station_type in QUANTITY_CODES.keys():
-        for station_code in all_stations_meuse(station_type):
-            if station_type == crashed_type and station_code == crashed_station:
-                data_status = 'bare'
-            #
-            url = build_url_StatHoraireTab(station_code, station_type)
-            soup = retrieveStatHoraireTab(url)
-            [start_date, end_date] = parsePeriod(soup)
-            calendar = makeCalendar(start_date, end_date, earliest_year=EARLIEST_YEAR)
-            for (year, month) in calendar:        
-                daco.append( {
-                    'station_code': station_code,
-                    'station_type': station_type,
-                    'year': year,
-                    'month': month,
-                    'coverage': data_status
-                    } )
-            #
-    data_coverage = pd.DataFrame(data = daco)
-    data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
 
 # example combos:
 # hauteur: 2536
@@ -598,10 +552,10 @@ month_test = 6
 
 # process_station_month(station_test, type_test, year_test, month_test, cover=['bare', 'unknown', 'incomplete'])
 
-etl_station_alltime(station_test, type_test)
+process_station_alltime(station_test, type_test)
 
 # for station_type in QUANTITY_CODES.keys():
-#     etl_meuse_alltime(station_type)
+#     process_meuse_alltime(station_type)
  
 data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
 
