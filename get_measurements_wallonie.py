@@ -7,6 +7,7 @@ from urllib.error import URLError, HTTPError
 import re
 import json
 import psycopg2
+import sys
 
 # the following strings represent Walloon rivers in the Meuse Watershed
 MEUSE_WATERSHED = [
@@ -54,7 +55,7 @@ MEUSE_WATERSHED = [
 
 # The website *Les voies hydrauliques* encodes station types with these strings
 
-## What is code 9002? Perhapsa debit that is not in the archive?
+## What is code 9002? Perhaps a debit that is not in the archive?
 # example Vise: http://voies-hydrauliques.wallonie.be/opencms/opencms/fr/hydro/Actuelle/crue/mesure.jsp?code=54519002
 
 QUANTITY_CODES = {
@@ -68,10 +69,12 @@ SLEEPTIME = 0.5 # seconds
 CONNECTION_DETAILS_MEASUREMENT = "dbname='meuse' user='postgres' password='password' host='localhost' port='5333'"
 CONNECTION_DETAILS_STATION = "dbname='meuse' user='postgres' password='password' host='localhost' port='5222'"
 
-UNKNOWN_FLOAT = -999999
-
-# local dir to store resulting CSV files
-DIR_STATIONS = '/Users/rik/meuse_forecast/datasets/S/wallonie'
+# df to store status of data coverage in our timescalDB
+# the columns 'coverage' can have the following values:
+#  covered: we scraped the data and inserted it in the DB
+#  bare: we need to scrape this
+#  unknown: default status until we know better
+# data_coverage = pd.DataFrame(columns = ['station_code', 'station_type', 'year', 'month', 'coverage'])
 
 def get_stations_db(station_type):
     """
@@ -449,7 +452,7 @@ def all_stations_meuse(station_type):
     """
     stations_db = get_stations_db(station_type)
     stations_meuse_db = stations_db[stations_db['river'].isin(MEUSE_WATERSHED)]
-    print(f"found {len(stations_meuse_db)} stations in db in watershed Meuse")
+    print(f"found {len(stations_meuse_db)} {station_type} stations in db in watershed Meuse")
     return list(stations_meuse_db.index)
 
 def etl_station_month(station_code, station_type, year, month):
@@ -460,11 +463,15 @@ def etl_station_month(station_code, station_type, year, month):
     url = build_url_StatHoraireTab(station_code, station_type, year, month)
     print(station_code, station_type, year, month, url)
     soup = retrieveStatHoraireTab(url)
-    if access_authorized(soup):
-        measurements_dict = parseMeasurements(soup)
-        insert_records_measurement(measurements_dict, station_code, station_type, year, month)
+    if soup:
+        if access_authorized(soup):
+            measurements_dict = parseMeasurements(soup)
+            insert_records_measurement(measurements_dict, station_code, station_type, year, month)
+        else:
+            print(station_code, "access not authorized", url)
     else:
-        print(station_code, "access not authorized", url)
+        print("no measurements for", station_code, station_type, year, month, file=sys.stderr)
+    #
 
 def etl_meuse_month(station_type, year, month):
     """
@@ -496,12 +503,48 @@ def etl_station_alltime(station_code, station_type):
     """
     url = build_url_StatHoraireTab(station_code, station_type)
     soup = retrieveStatHoraireTab(url)
-    [start_date, end_date] = parsePeriod(soup)
-    calendar = makeCalendar(start_date, end_date)
-    for (year, month) in calendar:
-        etl_station_month(station_code, station_type, year, month)
-        time.sleep(SLEEPTIME)
+    if soup:
+        [start_date, end_date] = parsePeriod(soup)
+        calendar = makeCalendar(start_date, end_date)
+        for (year, month) in calendar:
+            etl_station_month(station_code, station_type, year, month)
+            time.sleep(SLEEPTIME)
+    else:
+        print("no soup found, no calendar created for", station_code, station_type, file=sys.stderr)
     #
+
+def recover_crashed_run():
+    # helper code to recover data status from last crashed run
+    # we know where it crashed:
+    crashed_type = 'precipitation'
+    crashed_station = 9596
+
+    # set up empty list of dicts
+    daco = []
+    # as we follow the footsteps of the crashed run, we can assume all station/type/year/months are covered
+    # up until we encounter the crashed station/type
+    data_status = 'covered'
+    for station_type in QUANTITY_CODES.keys():
+        for station_code in all_stations_meuse(station_type):
+            if station_type == crashed_type and station_code == crashed_station:
+                data_status = 'bare'
+            #
+            url = build_url_StatHoraireTab(station_code, station_type)
+            soup = retrieveStatHoraireTab(url)
+            [start_date, end_date] = parsePeriod(soup)
+            calendar = makeCalendar(start_date, end_date)
+            for (year, month) in calendar:        
+                daco.append( {
+                    'station_code': station_code,
+                    'station_type': station_type,
+                    'year': year,
+                    'month': month,
+                    'coverage': data_status
+                    } )
+            #
+    data_coverage = pd.DataFrame(data = daco)
+    data_coverage.to_csv('data_coverage.csv')
+
 
 # example combos:
 # hauteur: 2536
@@ -517,6 +560,7 @@ month_test = 2
 
 # etl_station_alltime(station_test, type_test)
 
-for type_test in QUANTITY_CODES.keys():
-    # etl_meuse_month(type_test, year_test, month_test)
-    etl_meuse_alltime(type_test)
+# for station_type in QUANTITY_CODES.keys():
+#     # etl_meuse_month(station_type, year_test, month_test)
+#     etl_meuse_alltime(station_type)
+
