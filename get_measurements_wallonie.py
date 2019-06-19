@@ -7,7 +7,7 @@ from urllib.error import URLError, HTTPError
 import re
 import json
 import psycopg2
-import sys
+import sys, os
 
 # the following strings represent Walloon rivers in the Meuse Watershed
 MEUSE_WATERSHED = [
@@ -79,8 +79,12 @@ CONNECTION_DETAILS_STATION = "dbname='meuse' user='postgres' password='password'
 #  nonvalidated: some or all cells in the table are not (yet) validated by the website [todo]
 #  unknown: default status until we know better [implemented]
 
-# data_coverage = pd.DataFrame(columns = ['station_type', 'station_code', 'year', 'month', 'coverage'])
-data_coverage = pd.read_csv('data_coverage.csv')
+DATA_COVERAGE_FILENAME = 'data_coverage.csv'
+if os.path.exists(DATA_COVERAGE_FILENAME) and os.path.isfile(DATA_COVERAGE_FILENAME):
+    data_coverage = pd.read_csv(DATA_COVERAGE_FILENAME)
+else:
+    data_coverage = pd.DataFrame(columns = ['station_type', 'station_code', 'year', 'month', 'coverage'])
+    data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
 
 # In order to decide if we are dealing with a year-month still going on (implying
 # that the table cannot be complete yet), we need to know what year/month it is now.
@@ -513,7 +517,6 @@ def process_station_month(station_code, station_type, year, month, cover=['bare'
     #
     data_coverage.loc[station_type_year_month, ['coverage']] = coverage
 
-
 def etl_meuse_month(station_type, year, month):
     """
     Performs ETL for all stations (of one type) in the watershed Meuse for one year-month.
@@ -532,7 +535,7 @@ def etl_meuse_alltime(station_type):
     """
     for station_code in all_stations_meuse(station_type):
         etl_station_alltime(station_code, station_type)
-        data_coverage.to_csv('data_coverage.csv', index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
+        data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
     #
 
 def etl_station_alltime(station_code, station_type):
@@ -581,7 +584,7 @@ def recover_crashed_run():
                     } )
             #
     data_coverage = pd.DataFrame(data = daco)
-    data_coverage.to_csv('data_coverage.csv', index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
+    data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
 
 # example combos:
 # hauteur: 2536
@@ -600,5 +603,5 @@ etl_station_alltime(station_test, type_test)
 # for station_type in QUANTITY_CODES.keys():
 #     etl_meuse_alltime(station_type)
  
-data_coverage.to_csv('data_coverage.csv', index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
+data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
 
