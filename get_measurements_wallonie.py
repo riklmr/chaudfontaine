@@ -65,6 +65,7 @@ QUANTITY_CODES = {
 }
 
 SLEEPTIME = 0.8 # seconds
+EARLIEST_YEAR = 2000
 
 CONNECTION_DETAILS_MEASUREMENT = "dbname='meuse' user='postgres' password='password' host='localhost' port='5333'"
 CONNECTION_DETAILS_STATION = "dbname='meuse' user='postgres' password='password' host='localhost' port='5222'"
@@ -85,13 +86,14 @@ data_coverage = pd.read_csv('data_coverage.csv')
 # In order to decide if we are dealing with a year-month still going on (implying
 # that the table cannot be complete yet), we need to know what year/month it is now.
 # The website uses timezone UTC+01, as far as I can see. No DST.
-# But this script might be running for hours on end. We determine "now" at the start of it.
+# We are comparing UTC (time.time()) without Zone of DST.
+# But this script might be running for hours on end. We determine "now" only once, at the start of it.
 # For these (and some other) reasons, we apply a margin. We test if the requested month
 # could be near "now" by comparing it with a recent moment and a soon moment.
 
 TIME_MARGIN = 3600 * 25 # a 25 hour margin: do not make this larger than half a month
-(recent_year, recent_month) = time.localtime(time.gmtime() - TIME_MARGIN)[0:2]
-(soon_year, soon_month) = time.localtime(time.gmtime() + TIME_MARGIN)[0:2]
+(recent_year, recent_month) = time.localtime(time.time() - TIME_MARGIN)[0:2]
+(soon_year, soon_month) = time.localtime(time.time() + TIME_MARGIN)[0:2]
 
 def get_stations_db(station_type):
     """
@@ -415,17 +417,19 @@ def insert_records_measurement(X, station_code, station_type, year, month):
     #
     return True
 
-def makeCalendar(start_date, end_date):
+def makeCalendar(start_date, end_date, earliest_year=1950):
     """
     Returns a list of tuples (year as int, month as int) containing 
     all year/month combinations between start_date and end_date, including.
     Parameters: start_date, end_date as ISO strings.
-
+    earliest_year (int): indicates the earliest year we want to scrape
+        this prevents scraping of VERY DEEP archives
     TODO: parameter max_age to limit how far back into history we need to look
     """
     [[start_year, start_month]] = re.findall(r"^(\d\d\d\d)\/(\d\d)\/", start_date)
     [[end_year, end_month]] = re.findall(r"^(\d\d\d\d)\/(\d\d)\/", end_date)
 
+    start_year = max(int(start_year), earliest_year)
     calendar = []
 
     # start_year may not be complete, so start at start_month
@@ -529,7 +533,7 @@ def etl_station_alltime(station_code, station_type):
     soup = retrieveStatHoraireTab(url)
     if soup:
         [start_date, end_date] = parsePeriod(soup)
-        calendar = makeCalendar(start_date, end_date)
+        calendar = makeCalendar(start_date, end_date, earliest_year=EARLIEST_YEAR)
         for (year, month) in calendar:
             etl_station_month(station_code, station_type, year, month)
     else:
@@ -555,7 +559,7 @@ def recover_crashed_run():
             url = build_url_StatHoraireTab(station_code, station_type)
             soup = retrieveStatHoraireTab(url)
             [start_date, end_date] = parsePeriod(soup)
-            calendar = makeCalendar(start_date, end_date)
+            calendar = makeCalendar(start_date, end_date, earliest_year=EARLIEST_YEAR)
             for (year, month) in calendar:        
                 daco.append( {
                     'station_code': station_code,
