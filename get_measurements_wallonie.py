@@ -522,7 +522,6 @@ def etl_meuse_alltime(station_type):
         etl_station_alltime(station_code, station_type)
         data_coverage.to_csv('data_coverage.csv', index=False)
 
-
 def etl_station_alltime(station_code, station_type):
     """
     Performs ETL on one station, for all available year/months.
