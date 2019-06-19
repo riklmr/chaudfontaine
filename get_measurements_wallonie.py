@@ -65,7 +65,6 @@ QUANTITY_CODES = {
 }
 
 SLEEPTIME = 0.4 # seconds
-EARLIEST_YEAR = 2000
 
 CONNECTION_DETAILS_MEASUREMENT = "dbname='meuse' user='postgres' password='password' host='localhost' port='5333'"
 CONNECTION_DETAILS_STATION = "dbname='meuse' user='postgres' password='password' host='localhost' port='5222'"
@@ -79,12 +78,20 @@ CONNECTION_DETAILS_STATION = "dbname='meuse' user='postgres' password='password'
 #  nonvalidated: some or all cells in the table are not (yet) validated by the website [todo]
 #  unknown: default status until we know better [implemented]
 
-DATA_COVERAGE_FILENAME = 'data_coverage.csv'
+DATA_COVERAGE_FILENAME = 'data_coverage_issue5.csv'
+
 if os.path.exists(DATA_COVERAGE_FILENAME) and os.path.isfile(DATA_COVERAGE_FILENAME):
     data_coverage = pd.read_csv(DATA_COVERAGE_FILENAME)
+    data_coverage.set_index(['station_type', 'station_code', 'year', 'month'], inplace=True)
 else:
     data_coverage = pd.DataFrame(columns = ['station_type', 'station_code', 'year', 'month', 'coverage'])
-    data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
+    data_coverage.set_index(['station_type', 'station_code', 'year', 'month'], inplace=True)
+    data_coverage.to_csv(DATA_COVERAGE_FILENAME)
+
+print("init")
+print(data_coverage)
+
+
 
 # In order to decide if we are dealing with a year-month still going on (implying
 # that the table cannot be complete yet), we need to know what year/month it is now.
@@ -139,7 +146,7 @@ def get_stations_db(station_type):
     # print("connection closed")
     return stations_df
 
-def build_url_StatHoraireTab(station_code, station_type, year=None, month=None):
+def build_url_StatHoraireTab(station_type, station_code, year=None, month=None):
     """
     Returns the URL for the correct page, given:
     station by code (string or integer)
@@ -338,7 +345,7 @@ def create_table_measurement():
     print("connection closed")
     #
 
-def insert_records_measurement(X, station_code, station_type, year, month):
+def insert_records_measurement(X, station_type, station_code, year, month):
     """
     Takes a dict with a month worth of measurements (created by parseMeasurements()),
     stores them in a chronological Postgres Database.
@@ -444,63 +451,80 @@ def all_stations_meuse(station_type):
     print(f"found {len(stations_meuse_db)} {station_type} stations in db in watershed Meuse")
     return list(stations_meuse_db.index)
 
-def etl_station_month(station_code, station_type, year, month):
+def etl_station_month(station_type, station_code, year, month):
     """
     Performs ETL for one station (of one type) for one year-month.
-    Parameters: station_code, station_type, year, month.
+    Parameters: station_type, station_code, year, month.
     """
     coverage = 'unknown'
 
-    url = build_url_StatHoraireTab(station_code, station_type, year, month)
-    print(station_code, station_type, year, month, url)
+    url = build_url_StatHoraireTab(station_type, station_code, year, month)
+    print(station_type, station_code, year, month, url)
     soup = retrieveStatHoraireTab(url)
     time.sleep(SLEEPTIME) # courtesy to the webserver
 
     if soup:
         if access_authorized(soup):
             measurements_dict = parseMeasurements(soup)
-            insert_records_measurement(measurements_dict, station_code, station_type, year, month)
+            insert_records_measurement(measurements_dict, station_type, station_code, year, month)
             coverage = 'covered'
         else:
             print(station_code, "access not authorized", url)
             coverage = 'unavailable'
     else:
-        print("no measurements for", station_code, station_type, year, month, file=sys.stderr)
+        print("no measurements for", station_type, station_code, year, month, file=sys.stderr)
         coverage = 'unknown'
     #
     return coverage
 
-def process_station_month(station_code, station_type, year, month, cover=['bare', 'unknown']):
+def process_station_month(station_type, station_code, year, month, cover=['bare', 'unknown']):
     """
     Processes ETL for one station (of one type) for one year-month.
     Keeps track of data coverage. Skips when data coverage is not in the list of user
     requested coverage states.
-    Parameters: station_code, station_type, year, month.
+    Parameters: station_type, station_code, year, month,
         cover: list of coverage states that the user wants 'covered', defaults to ['bare', 'unknown'].
     """
+    print('====================================')
+    global data_coverage
 
-    station_type_year_month = (
-        (data_coverage['station_code'] == station_code) &
-        (data_coverage['station_type'] == station_type) &
-        (data_coverage['year'] == year) &
-        (data_coverage['month'] == month)
-    )
-    coverage_df = data_coverage.loc[station_type_year_month, ['coverage']]
-    if coverage_df.empty:
+    # BUGGED: this .loc[] is malfunctioning!
+    coverage_on_record = data_coverage.loc[[station_type, station_code, year, month], ['coverage']]
+    print("coverage_on_record\n", coverage_on_record)
+    if coverage_on_record.empty:
+        print("unknown")
         coverage = 'unknown'
+        # OK, hold your breath and ogle this hideous wart:
+        # (just adding a new row to this multilevel indexed df)
+        new_record = pd.DataFrame(
+            {
+                'station_type': station_type,
+                'station_code': station_code,
+                'year': year,
+                'month': month,
+                'coverage': coverage
+            }, index=[station_type, station_code, year, month]).set_index(['station_type', 'station_code', 'year', 'month'])
+
+        data_coverage = data_coverage.append(new_record)
     else:
-        coverage = coverage_df.iloc[0,0].values
+        print("well known")
+        coverage = coverage_on_record.values[0][0]
+    #
     #
     if coverage in cover:
-        coverage = etl_station_month(station_code, station_type, year, month)
-        if (coverage == 'covered') and ( (year, month)==(recent_year, recent_month) or (year, month)==(soon_year, soon_month) ):
+        new_coverage = etl_station_month(station_type, station_code, year, month)
+        if (new_coverage == 'covered') and ( (year, month)==(recent_year, recent_month) or (year, month)==(soon_year, soon_month) ):
             # we are (probably?) parsing the current month, so let's flag it as incomplete for now
-            coverage = 'incomplete'
+            new_coverage = 'incomplete'
         #
     else:
-        print( "skipping as not requested", station_code, station_type, year, month, coverage)
+        print("skipping as not requested", station_type, station_code, year, month, coverage)
+        new_coverage = coverage
     #
-    data_coverage.loc[station_type_year_month, ['coverage']] = coverage
+    data_coverage.loc[[station_type, station_code, year, month], 'coverage'] = new_coverage
+    print('-----')
+    print(data_coverage)
+    print('-----')
 
 def process_meuse_month(station_type, year, month):
     """
@@ -508,7 +532,7 @@ def process_meuse_month(station_type, year, month):
     Parameters: station_type, year, month.
     """
     for station_code in all_stations_meuse(station_type):
-        process_station_month(station_code, station_type, year, month)
+        process_station_month(station_type, station_code, year, month)
 
 def process_meuse_alltime(station_type):
     """
@@ -519,24 +543,24 @@ def process_meuse_alltime(station_type):
     WARNING: this is the heaviest scraper of them all. Use wisely!
     """
     for station_code in all_stations_meuse(station_type):
-        process_station_alltime(station_code, station_type)
-        data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
+        process_station_alltime(station_type, station_code)
+        data_coverage.to_csv(DATA_COVERAGE_FILENAME)
     #
 
-def process_station_alltime(station_code, station_type):
+def process_station_alltime(station_type, station_code, earliest_year=1990):
     """
     Performs ETL on one station, for all available year/months.
-    Parameters: station_code (int or str), station_type (str).
+    Parameters: station_type (str), station_code (int or str).
     """
-    url = build_url_StatHoraireTab(station_code, station_type)
+    url = build_url_StatHoraireTab(station_type, station_code)
     soup = retrieveStatHoraireTab(url)
     if soup:
         [start_date, end_date] = parsePeriod(soup)
-        calendar = makeCalendar(start_date, end_date, earliest_year=EARLIEST_YEAR)
+        calendar = makeCalendar(start_date, end_date, earliest_year=earliest_year)
         for (year, month) in calendar:
-            process_station_month(station_code, station_type, year, month)
+            process_station_month(station_type, station_code, year, month)
     else:
-        print("no soup found, no calendar created for", station_code, station_type, file=sys.stderr)
+        print("no soup found, no calendar created for", station_type, station_code, file=sys.stderr)
     #
 
 
@@ -545,17 +569,18 @@ def process_station_alltime(station_code, station_type):
 # debit: 6526
 # precipitation: 5649
 
-station_test = 5572
-type_test = 'debit'
-year_test = 2017
-month_test = 1
+# test parameters
+station_type = 'debit'
+station_code = 5572
+year = 2017
+month = 1
 
-# process_station_month(station_test, type_test, year_test, month_test, cover=['bare', 'unknown', 'incomplete'])
+# process_station_month(station_type, station_code, year, month, cover=['bare', 'unknown', 'incomplete'])
 
-# process_station_alltime(station_test, type_test)
+process_station_alltime(station_type, station_code, earliest_year = 2019)
 
-for station_type in QUANTITY_CODES.keys():
-    process_meuse_alltime(station_type)
+# for station_type in QUANTITY_CODES.keys():
+#     process_meuse_alltime(station_type)
  
-data_coverage.to_csv(DATA_COVERAGE_FILENAME, index=False, header=True, columns=['station_type', 'station_code', 'year', 'month', 'coverage'])
+data_coverage.to_csv(DATA_COVERAGE_FILENAME)
 
