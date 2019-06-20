@@ -104,6 +104,6 @@ venv.bak/
 .mypy_cache/
 
 # rik
-./data_coverage.pickle
+data_coverage.pickle
 
 
