@@ -100,10 +100,10 @@ def save_data_coverage(data_coverage):
     pickled_dict.close()
     print(len(data_coverage), "tracked pages saved")
 
-def init_data_coverage():
+def init_data_coverage(filename=DATA_COVERAGE_FILENAME):
     print("init data coverage tracking")
-    if os.path.exists(DATA_COVERAGE_FILENAME) and os.path.isfile(DATA_COVERAGE_FILENAME):
-        pickled_dict = open(DATA_COVERAGE_FILENAME, mode='rb')
+    if os.path.exists(filename) and os.path.isfile(filename):
+        pickled_dict = open(filename, mode='rb')
         data_coverage = pickle.load(pickled_dict)
         pickled_dict.close()
     else:
@@ -112,7 +112,7 @@ def init_data_coverage():
     print(len(data_coverage), "pages already tracked")
     return data_coverage
 
-def get_stations_db(station_type):
+def get_stations_db(station_type, connection_details=CONNECTION_DETAILS_STATION):
     """
     Returns a Pandas dataframe of stations from the database.
     Parameters:
@@ -127,7 +127,7 @@ def get_stations_db(station_type):
     columns = ", ".join(fields)
 
 
-    conn = psycopg2.connect(CONNECTION_DETAILS_STATION)
+    conn = psycopg2.connect(connection_details)
     cursor = conn.cursor()
     # print("connected to database meuse")
 
@@ -312,11 +312,11 @@ def parseMeasurements(soup):
     #
     return X
 
-def create_table_measurement():
+def create_table_measurement(connection_details=CONNECTION_DETAILS_MEASUREMENT):
     """
     Creates the TimescaleDB table for measurements.
     """
-    conn = psycopg2.connect(CONNECTION_DETAILS_MEASUREMENT)
+    conn = psycopg2.connect(connection_details)
     cursor = conn.cursor()
     print("connected to database meuse")
 
@@ -353,7 +353,7 @@ def create_table_measurement():
     print("connection closed")
     #
 
-def insert_records_measurement(X, station_type, station_code, year, month):
+def insert_records_measurement(X, station_type, station_code, year, month, connection_details=CONNECTION_DETAILS_MEASUREMENT):
     """
     Takes a dict with a month worth of measurements (created by parseMeasurements()),
     stores them in a chronological Postgres Database.
@@ -366,7 +366,7 @@ def insert_records_measurement(X, station_type, station_code, year, month):
     """
     # table_name = "wallonie.measurement"
 
-    conn = psycopg2.connect(CONNECTION_DETAILS_MEASUREMENT)
+    conn = psycopg2.connect(connection_details)
     cursor = conn.cursor()
     # print("connected to database meuse")
 
@@ -456,31 +456,31 @@ def makeCalendar(start_date, end_date, earliest_year=1950):
     
     return calendar
 
-def all_stations_meuse(station_type):
+def all_stations_meuse(station_type, **kwargs):
     """
     Returns a list of station_code of stations in the watershed of the Meuse.
     Parameter: station_type (string).
     """
-    stations_db = get_stations_db(station_type)
+    stations_db = get_stations_db(station_type, **kwargs)
     stations_meuse_db = stations_db[stations_db['river'].isin(MEUSE_WATERSHED)]
     print(f"found {len(stations_meuse_db)} {station_type} stations in db in watershed Meuse")
     return list(stations_meuse_db.index)
 
-def etl_station_month(station_type, station_code, year, month):
+def etl_station_month(station_type, station_code, year, month, **kwargs):
     """
     Performs ETL for one station (of one type) for one year-month.
     Parameters: station_type, station_code, year, month.
     """
     coverage = 'unknown'
 
-    url = build_url_StatHoraireTab(station_type, station_code, year, month)
+    url = build_url_StatHoraireTab(station_type=station_type, station_code=station_code, year=year, month=month)
     soup = retrieveStatHoraireTab(url)
     time.sleep(SLEEPTIME) # courtesy to the webserver
 
     if soup:
         if access_authorized(soup):
             measurements_dict = parseMeasurements(soup)
-            insert_records_measurement(measurements_dict, station_type, station_code, year, month)
+            insert_records_measurement(X=measurements_dict, station_type=station_type, station_code=station_code, year=year, month=month)
             coverage = 'covered'
         else:
             print(station_code, "access not authorized", url)
@@ -491,7 +491,7 @@ def etl_station_month(station_type, station_code, year, month):
     #
     return coverage
 
-def process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown']):
+def process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown'], **kwargs):
     """
     Processes ETL for one station (of one type) for one year-month.
     Keeps track of data coverage. Skips when data coverage is not in the list of user
@@ -510,7 +510,7 @@ def process_station_month(station_type, station_code, year, month, want_covered=
     #
     if old_coverage in want_covered:
         print("scraping wanted page", coverage_key, old_coverage)
-        new_coverage = etl_station_month(station_type, station_code, year, month)
+        new_coverage = etl_station_month(station_type=station_type, station_code=station_code, year=year, month=month, **kwargs)
         if (new_coverage == 'covered') and ( (year, month)==(recent_year, recent_month) or (year, month)==(soon_year, soon_month) ):
             # we are (probably?) parsing the current month, so let's flag it as incomplete for now
             new_coverage = 'incomplete'
@@ -523,39 +523,43 @@ def process_station_month(station_type, station_code, year, month, want_covered=
 
     return new_coverage
 
-def process_meuse_month(station_type, year, month):
+def process_meuse_month(station_type, year, month, **kwargs):
     """
     Performs ETL for all stations (of one type) in the watershed Meuse for one year-month.
     Parameters: station_type, year, month.
     """
     for station_code in all_stations_meuse(station_type):
-        process_station_month(station_type, station_code, year, month)
+        process_station_month(station_type=station_type, station_code=station_code, year=year, month=month, **kwargs)
 
-def process_meuse_alltime(station_type, earliest_year=2010):
+def process_meuse_alltime(station_type, **kwargs):
     """
     Performs ETL for all stations (of one type) in the watershed Meuse 
     for all available year-months (of each station).
     Parameter: station_type.
 
     WARNING: this is the heaviest scraper of them all. Use wisely!
+    Consider restricting with earliest_year=<recent year>.
+    Use want_covered=['incomplete'] to update incomplete months only.
     """
     for station_code in all_stations_meuse(station_type):
-        process_station_alltime(station_type, station_code)
+        process_station_alltime(station_type=station_type, station_code=station_code, **kwargs)
         save_data_coverage(data_coverage)
     #
 
-def process_station_alltime(station_type, station_code, earliest_year=1990):
+def process_station_alltime(station_type, station_code, **kwargs):
     """
     Performs ETL on one station, for all available year/months.
     Parameters: station_type (str), station_code (int or str).
     """
-    url = build_url_StatHoraireTab(station_type, station_code)
+    url = build_url_StatHoraireTab(station_type=station_type, station_code=station_code)
     soup = retrieveStatHoraireTab(url)
     if soup:
         [start_date, end_date] = parsePeriod(soup)
-        calendar = makeCalendar(start_date, end_date, earliest_year=earliest_year)
+        if 'earliest_year' in kwargs.keys():
+            earliest_year = kwargs['earliest_year']
+        calendar = makeCalendar(start_date=start_date, end_date=end_date, earliest_year=earliest_year)
         for (year, month) in calendar:
-            process_station_month(station_type, station_code, year, month)
+            process_station_month(station_type=station_type, station_code=station_code, year=year, month=month, **kwargs)
     else:
         print("no soup found, no calendar created for", station_type, station_code, file=sys.stderr)
     #
@@ -569,18 +573,22 @@ def process_station_alltime(station_type, station_code, earliest_year=1990):
 # test parameters
 station_type = 'debit'
 station_code = 5572
-year = 2017
-month = 1
+year = 2019
+month = 6
 
 data_coverage = init_data_coverage()
 
 
 # process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown', 'incomplete'])
 
-# process_station_alltime(station_type, station_code, earliest_year = 2014)
+# process_station_alltime(station_type, station_code, earliest_year = 1980, want_covered=['incomplete'])
 
 for station_type in QUANTITY_CODES.keys():
-    process_meuse_alltime(station_type)
+    process_meuse_alltime(
+        station_type, 
+        earliest_year=2012, 
+        want_covered=['bare', 'unknown'],
+    )
  
 save_data_coverage(data_coverage)
 
