@@ -8,6 +8,7 @@ import re
 import json
 import psycopg2
 import sys, os
+import pickle
 
 # the following strings represent Walloon rivers in the Meuse Watershed
 MEUSE_WATERSHED = [
@@ -69,41 +70,47 @@ SLEEPTIME = 0.4 # seconds
 CONNECTION_DETAILS_MEASUREMENT = "dbname='meuse' user='postgres' password='password' host='localhost' port='5333'"
 CONNECTION_DETAILS_STATION = "dbname='meuse' user='postgres' password='password' host='localhost' port='5222'"
 
-# df to store status of data coverage in our timescalDB
-# the columns 'coverage' could have the following values (if only we had them all implemented in code):
+# pickled dict to store status of data coverage in our timescalDB
+# the value could be any of thefollowing strings (if only we had them all implemented in code):
 #  covered: we scraped the data and inserted it in the DB [implemented]
-#  bare: we need to scrape this [implemented]
-#  incomplete: this year-month is not (yet) complete; likely the current month [implemented]
+#  bare: we need to scrape this [implemented for unavailable pages]
+#  incomplete: this year-month is not (yet) complete; likely the current month [implemented for current month only]
 #  annotated: some or all cells in the table are annotated by the website [todo]
 #  nonvalidated: some or all cells in the table are not (yet) validated by the website [todo]
 #  unknown: default status until we know better [implemented]
 
-DATA_COVERAGE_FILENAME = 'data_coverage_issue5.csv'
-
-if os.path.exists(DATA_COVERAGE_FILENAME) and os.path.isfile(DATA_COVERAGE_FILENAME):
-    data_coverage = pd.read_csv(DATA_COVERAGE_FILENAME)
-    data_coverage.set_index(['station_type', 'station_code', 'year', 'month'], inplace=True)
-else:
-    data_coverage = pd.DataFrame(columns = ['station_type', 'station_code', 'year', 'month', 'coverage'])
-    data_coverage.set_index(['station_type', 'station_code', 'year', 'month'], inplace=True)
-    data_coverage.to_csv(DATA_COVERAGE_FILENAME)
-
-print("init")
-print(data_coverage)
-
-
+DATA_COVERAGE_FILENAME = 'data_coverage.pickle'
 
 # In order to decide if we are dealing with a year-month still going on (implying
-# that the table cannot be complete yet), we need to know what year/month it is now.
+# that the table cannot be complete yet), we need to know what year-month it is now.
 # The website uses timezone UTC+01, as far as I can see. No DST.
-# We are comparing UTC (time.time()) without Zone of DST.
+# We are comparing UTC (time.time()) without Zone or DST.
 # But this script might be running for hours on end. We determine "now" only once, at the start of it.
 # For these (and some other) reasons, we apply a margin. We test if the requested month
 # could be near "now" by comparing it with a recent moment and a soon moment.
 
-TIME_MARGIN = 3600 * 25 # a 25 hour margin: do not make this larger than half a month
+TIME_MARGIN = 3600 * 25 # a few hours margin in seconds: do not make this larger than half a month
 (recent_year, recent_month) = time.localtime(time.time() - TIME_MARGIN)[0:2]
 (soon_year, soon_month) = time.localtime(time.time() + TIME_MARGIN)[0:2]
+
+
+def save_data_coverage(data_coverage):
+    pickled_dict = open(DATA_COVERAGE_FILENAME, mode='wb')
+    pickle.dump(data_coverage, pickled_dict)
+    pickled_dict.close()
+    print(len(data_coverage), "tracked pages saved")
+
+def init_data_coverage():
+    print("init data coverage tracking")
+    if os.path.exists(DATA_COVERAGE_FILENAME) and os.path.isfile(DATA_COVERAGE_FILENAME):
+        pickled_dict = open(DATA_COVERAGE_FILENAME, mode='rb')
+        data_coverage = pickle.load(pickled_dict)
+        pickled_dict.close()
+    else:
+        data_coverage = {}
+        save_data_coverage(data_coverage)
+    print(len(data_coverage), "pages already tracked")
+    return data_coverage
 
 def get_stations_db(station_type):
     """
@@ -175,6 +182,7 @@ def retrieveStatHoraireTab(url):
     soup = None
     # we ask the website for printable output (xt=prt) because it is cleaner and easier to parse
     # define a request object
+    print(url)
     req = Request(url)
     try:
         # open the http connection with the server
@@ -422,22 +430,29 @@ def makeCalendar(start_date, end_date, earliest_year=1950):
     """
     [[start_year, start_month]] = re.findall(r"^(\d\d\d\d)\/(\d\d)\/", start_date)
     [[end_year, end_month]] = re.findall(r"^(\d\d\d\d)\/(\d\d)\/", end_date)
+    start_year = int(start_year)
+    start_month = int(start_month)
+    end_year = int(end_year)
+    end_month = int(end_month)
 
-    start_year = max(int(start_year), earliest_year)
+    start_year = max(start_year, earliest_year)
     calendar = []
 
-    # start_year may not be complete, so start at start_month
-    for month in range(int(start_month), 13):
-        calendar.append( (int(start_year), month) )
-    
-    # intervening years are complete, so start with 1, end with 12
-    for year in range(int(start_year) + 1, int(end_year)):
-        for month in range(1, 13):
-            calendar.append( (year, month) )
+    # start_year may be the same as end_year, if so: skip it and skip intervening years
+    # also skip when start_year mistakenly follows end_year
+    if start_year < end_year:
+        # start_year may not be complete, so start at start_month
+        for month in range(start_month, 13):
+            calendar.append( (start_year, month) )
+        
+        # intervening years are complete, so start with 1, end with 12
+        for year in range(start_year + 1, end_year):
+            for month in range(1, 13):
+                calendar.append( (year, month) )
 
     # end_year may not be complete (most likely this is the current year)
-    for month in range(1, int(end_month) + 1):
-        calendar.append( (int(end_year), month) )
+    for month in range(1, end_month + 1):
+        calendar.append( (end_year, month) )
     
     return calendar
 
@@ -459,7 +474,6 @@ def etl_station_month(station_type, station_code, year, month):
     coverage = 'unknown'
 
     url = build_url_StatHoraireTab(station_type, station_code, year, month)
-    print(station_type, station_code, year, month, url)
     soup = retrieveStatHoraireTab(url)
     time.sleep(SLEEPTIME) # courtesy to the webserver
 
@@ -470,61 +484,44 @@ def etl_station_month(station_type, station_code, year, month):
             coverage = 'covered'
         else:
             print(station_code, "access not authorized", url)
-            coverage = 'unavailable'
+            coverage = 'bare'
     else:
         print("no measurements for", station_type, station_code, year, month, file=sys.stderr)
         coverage = 'unknown'
     #
     return coverage
 
-def process_station_month(station_type, station_code, year, month, cover=['bare', 'unknown']):
+def process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown']):
     """
     Processes ETL for one station (of one type) for one year-month.
     Keeps track of data coverage. Skips when data coverage is not in the list of user
     requested coverage states.
     Parameters: station_type, station_code, year, month,
-        cover: list of coverage states that the user wants 'covered', defaults to ['bare', 'unknown'].
+        want_covered: list of coverage states that the user wants to cover, 
+        defaults to ['bare', 'unknown'].
     """
-    print('====================================')
-    global data_coverage
+    # serialize four vars into a key for dict data_coverage
+    coverage_key = "{}-{}-{}-{}".format(station_type, station_code, year, month)
 
-    # BUGGED: this .loc[] is malfunctioning!
-    coverage_on_record = data_coverage.loc[[station_type, station_code, year, month], ['coverage']]
-    print("coverage_on_record\n", coverage_on_record)
-    if coverage_on_record.empty:
-        print("unknown")
-        coverage = 'unknown'
-        # OK, hold your breath and ogle this hideous wart:
-        # (just adding a new row to this multilevel indexed df)
-        new_record = pd.DataFrame(
-            {
-                'station_type': station_type,
-                'station_code': station_code,
-                'year': year,
-                'month': month,
-                'coverage': coverage
-            }, index=[station_type, station_code, year, month]).set_index(['station_type', 'station_code', 'year', 'month'])
-
-        data_coverage = data_coverage.append(new_record)
+    if coverage_key in data_coverage.keys():
+        old_coverage = data_coverage[coverage_key]
     else:
-        print("well known")
-        coverage = coverage_on_record.values[0][0]
+        old_coverage = 'unknown'
     #
-    #
-    if coverage in cover:
+    if old_coverage in want_covered:
+        print("scraping wanted page", coverage_key, old_coverage)
         new_coverage = etl_station_month(station_type, station_code, year, month)
         if (new_coverage == 'covered') and ( (year, month)==(recent_year, recent_month) or (year, month)==(soon_year, soon_month) ):
             # we are (probably?) parsing the current month, so let's flag it as incomplete for now
             new_coverage = 'incomplete'
         #
+        data_coverage[coverage_key] = new_coverage
     else:
-        print("skipping as not requested", station_type, station_code, year, month, coverage)
-        new_coverage = coverage
+        print("skipping unwanted page", coverage_key, old_coverage)
+        new_coverage = old_coverage
     #
-    data_coverage.loc[[station_type, station_code, year, month], 'coverage'] = new_coverage
-    print('-----')
-    print(data_coverage)
-    print('-----')
+
+    return new_coverage
 
 def process_meuse_month(station_type, year, month):
     """
@@ -544,7 +541,7 @@ def process_meuse_alltime(station_type):
     """
     for station_code in all_stations_meuse(station_type):
         process_station_alltime(station_type, station_code)
-        data_coverage.to_csv(DATA_COVERAGE_FILENAME)
+        save_data_coverage(data_coverage)
     #
 
 def process_station_alltime(station_type, station_code, earliest_year=1990):
@@ -575,12 +572,16 @@ station_code = 5572
 year = 2017
 month = 1
 
-# process_station_month(station_type, station_code, year, month, cover=['bare', 'unknown', 'incomplete'])
+data_coverage = init_data_coverage()
 
-process_station_alltime(station_type, station_code, earliest_year = 2019)
+
+process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown', 'incomplete'])
+
+# process_station_alltime(station_type, station_code, earliest_year = 2018)
 
 # for station_type in QUANTITY_CODES.keys():
 #     process_meuse_alltime(station_type)
  
-data_coverage.to_csv(DATA_COVERAGE_FILENAME)
+save_data_coverage(data_coverage)
+
 
