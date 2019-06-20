@@ -65,7 +65,7 @@ QUANTITY_CODES = {
     'hauteur': '1011',
 }
 
-SLEEPTIME = 0.4 # seconds
+SLEEPTIME = 0.5 # seconds
 
 CONNECTION_DETAILS_MEASUREMENT = "dbname='meuse' user='postgres' password='password' host='localhost' port='5333'"
 CONNECTION_DETAILS_STATION = "dbname='meuse' user='postgres' password='password' host='localhost' port='5222'"
@@ -531,7 +531,7 @@ def process_meuse_month(station_type, year, month):
     for station_code in all_stations_meuse(station_type):
         process_station_month(station_type, station_code, year, month)
 
-def process_meuse_alltime(station_type):
+def process_meuse_alltime(station_type, earliest_year=2010):
     """
     Performs ETL for all stations (of one type) in the watershed Meuse 
     for all available year-months (of each station).
@@ -575,12 +575,12 @@ month = 1
 data_coverage = init_data_coverage()
 
 
-process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown', 'incomplete'])
+# process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown', 'incomplete'])
 
-# process_station_alltime(station_type, station_code, earliest_year = 2018)
+# process_station_alltime(station_type, station_code, earliest_year = 2014)
 
-# for station_type in QUANTITY_CODES.keys():
-#     process_meuse_alltime(station_type)
+for station_type in QUANTITY_CODES.keys():
+    process_meuse_alltime(station_type)
  
 save_data_coverage(data_coverage)
 
