@@ -1,7 +1,7 @@
 # chaudfontaine
 Harvest river measurements from stations in Wallonia. This repository was named after the measuring station [Chaudfontaine Piscine](https://www.openstreetmap.org/#map=16/50.5894/5.6537) in Wallonia of course. It measures La Vesdre just before it flows into L'Ourthe and into La Meuse.
 
-The software has a [Github repo here](https://github.com/riklmr/chaudfontaine).
+The software has a [Github repo here](https://github.com/riklmr/chaudfontaine). The encompassing project is tagged #Meuse on [Github.com](https://github.com/search?q=%23meuse) and on [medium.com](https://medium.com/search/tags?q=%23Meuse).
 
 You might find the additional information in [belleheid README.md](https://github.com/riklmr/belleheid) useful.
 
@@ -38,7 +38,7 @@ Tables are available month by month, station by station. Clicking through them i
 
 
 ## Python libraries needed
-The usual: pandas, time, json, urllib, re.
+The usual: pandas, time, json, urllib, re, pickle.
 
 Also: Beautiful Soup (bs4), Postgres client (psycopg2).
 
