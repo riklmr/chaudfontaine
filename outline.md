@@ -39,8 +39,8 @@ DONE: Our challenge is to unravel these tables, month by month, station by stati
 DONE: Next we need to write these data into a chronological database.
 
 ### Additional challenges
-- DOING: Finding the correct starting/ending points in time for this station;
-    - TODO: This needs to be dynamic: depending on data already stored in the chronological database, we might want to harvest only the newest entries. So we need to look up in the DB which timesteps are already filled with data.
+- DONE: Finding the correct starting/ending points in time for this station;
+    - DOING: This needs to be dynamic: depending on data already stored in the chronological database, we might want to harvest only the newest entries. So we need to look up in the DB which timesteps are already filled with data. (For the time being, we store this  data coverege status outside the DB in a Pandas DF.)
     - DONE: Each station has its own availablity of data. The table page indicates the period of availablility.
         ```html
         <tbody><tr align="left">

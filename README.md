@@ -5,7 +5,7 @@ The software has a [Github repo here](https://github.com/riklmr/chaudfontaine).
 
 You might find the additional information in [belleheid README.md](https://github.com/riklmr/belleheid) useful.
 
-This Python script:
+This Python 3 script:
 - E - scrapes info from voies-hydrauliques.wallonie.be
 - T - transforms html table into a Numpy array
 - L - stores the data chronologically in a PostgreSQL TimescaleDB
@@ -42,6 +42,14 @@ The usual: pandas, time, json, urllib, re.
 
 Also: Beautiful Soup (bs4), Postgres client (psycopg2).
 
+## Usage
+This script has no commandline parameters. Edit the constants or test code to suit your needs.
+
+Most output is to STDOUT. Code is slowly changing error to print to STDERR.
+
+Retrieving 240 year-months for one station takes about 7 minutes (using SLEEPTIME = 0.4).
+This would probably improve a lot if we bunched up all records to insert into the DB and perform one single SQL command. 
+However, we do not want to overload the scraped webserver, so slowly we plough through the data field.
+
 # Known issues
-1. chaudfontaine does not handle http errors gracefully.
-2. chaudfontaine has no way of logging errors or successes, so we cannot pick up were we crashed a long scrape.
+Clear!
