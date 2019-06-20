@@ -480,7 +480,7 @@ def etl_station_month(station_type, station_code, year, month, **kwargs):
     if soup:
         if access_authorized(soup):
             measurements_dict = parseMeasurements(soup)
-            insert_records_measurement(X=measurements_dict, station_type=station_type, station_code=station_code, year=year, month=month, **kwargs)
+            insert_records_measurement(X=measurements_dict, station_type=station_type, station_code=station_code, year=year, month=month)
             coverage = 'covered'
         else:
             print(station_code, "access not authorized", url)
@@ -538,6 +538,8 @@ def process_meuse_alltime(station_type, **kwargs):
     Parameter: station_type.
 
     WARNING: this is the heaviest scraper of them all. Use wisely!
+    Consider restricting with earliest_year=<recent year>.
+    Use want_covered=['incomplete'] to update incomplete months only.
     """
     for station_code in all_stations_meuse(station_type):
         process_station_alltime(station_type=station_type, station_code=station_code, **kwargs)
@@ -553,7 +555,9 @@ def process_station_alltime(station_type, station_code, **kwargs):
     soup = retrieveStatHoraireTab(url)
     if soup:
         [start_date, end_date] = parsePeriod(soup)
-        calendar = makeCalendar(start_date=start_date, end_date=end_date, **kwargs)
+        if 'earliest_year' in kwargs.keys():
+            earliest_year = kwargs['earliest_year']
+        calendar = makeCalendar(start_date=start_date, end_date=end_date, earliest_year=earliest_year)
         for (year, month) in calendar:
             process_station_month(station_type=station_type, station_code=station_code, year=year, month=month, **kwargs)
     else:
@@ -569,21 +573,21 @@ def process_station_alltime(station_type, station_code, **kwargs):
 # test parameters
 station_type = 'debit'
 station_code = 5572
-year = 2017
-month = 1
+year = 2019
+month = 6
 
 data_coverage = init_data_coverage()
 
 
 # process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown', 'incomplete'])
 
-# process_station_alltime(station_type, station_code, earliest_year = 2014)
+# process_station_alltime(station_type, station_code, earliest_year = 1980, want_covered=['incomplete'])
 
 for station_type in QUANTITY_CODES.keys():
     process_meuse_alltime(
         station_type, 
         earliest_year=2012, 
-        want_covered=['bare', 'unknown', 'incomplete'],
+        want_covered=['bare', 'unknown'],
     )
  
 save_data_coverage(data_coverage)
