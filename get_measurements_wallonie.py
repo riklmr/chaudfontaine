@@ -540,7 +540,7 @@ def process_meuse_alltime(station_type, earliest_year=2010):
     WARNING: this is the heaviest scraper of them all. Use wisely!
     """
     for station_code in all_stations_meuse(station_type):
-        process_station_alltime(station_type, station_code)
+        process_station_alltime(station_type, station_code, earliest_year=earliest_year)
         save_data_coverage(data_coverage)
     #
 
@@ -580,7 +580,7 @@ data_coverage = init_data_coverage()
 # process_station_alltime(station_type, station_code, earliest_year = 2014)
 
 for station_type in QUANTITY_CODES.keys():
-    process_meuse_alltime(station_type)
+    process_meuse_alltime(station_type, earliest_year=2012)
  
 save_data_coverage(data_coverage)
 
