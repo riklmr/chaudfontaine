@@ -7,13 +7,13 @@ You might find the additional information in [belleheid README.md](https://githu
 
 This Python 3 script:
 - E - scrapes info from voies-hydrauliques.wallonie.be
-- T - transforms html table into a Numpy array
-- L - stores the data chronologically in a PostgreSQL TimescaleDB
+- T - transforms html table into a dict
+- L - stores the data chronologically in a PostgreSQL (TimescaleDB)
 
 Read outline.md for details on (the state of) the implementation.
 
 ## Purpose
-This script retrieves and stores data tht will be used for training neural networks that model the flow of the river Meuse.
+This script retrieves and stores data that will be used for training neural networks that model the flow of the river Meuse.
 
 ## How to retrieve archived measurements from voies-hydrauliques.wallonie.be
 ### Via e-mail
@@ -43,13 +43,28 @@ The usual: pandas, time, json, urllib, re, pickle.
 Also: Beautiful Soup (bs4), Postgres client (psycopg2).
 
 ## Usage
-This script has no commandline parameters. Edit the constants or test code to suit your needs.
+This script has no commandline parameters. Edit the constants or function calls to suit your needs.
 
 Most output is to STDOUT. Code is slowly changing error to print to STDERR.
+
+This code assumes you set up PostgreSQL to receive your data. It also assumes you have another PostgreSQL DB holding tables of station meta data (See repo belleheid). Adjust the constants CONNECTION_DETAILS_* to your needs. The script has a function to create a suitable table.
 
 Retrieving 240 year-months for one station takes about 7 minutes (using SLEEPTIME = 0.4).
 This would probably improve a lot if we bunched up all records to insert into the DB and perform one single SQL command. 
 However, we do not want to overload the scraped webserver, so slowly we plough through the data field.
 
-# Known issues
+### full downloads versus updates
+The whole dataset is huge. It takes hours to download every single page (every type of measurement * every relevant station * every available year * 12 months). So we keep track of data coverage. That is: we answer the question "is this page in our DB already?".
+
+The call to process_station_month() needs to be parameterized to process only pages with a given coverage status. This defaults to `want_covered = ['bare', 'unknown']`. This means that the script will process pages that are known to be not covered yet (bare) and pages that are unknown (this could mean anything, except we did not keep track).
+
+In order to skip those pages, remove these coverage types fom the list and replace with different types. The parameter `want_covered = ['incomplete']` indicates you are only interested in updating pages the script has seen before, but were tracked as incomplete. This applies (in most cases) to pages of the current month. Those are still filling up hour by hour. Older pages might also have data holes in them, but (as of the current version) chaudfontaine ignores those holes. In the DBthose records will simply be missing. There are no NaN values in the DB.
+
+### Being nice to the webserver
+The constant SLEEPTIME adjusts a waiting period in between pages. This is my wayof being nice to the nice people operating the webserver. Courtesy from one server admin to another.
+
+### Being greedy
+The call to process_station_month() has the parameter earliest_year. Set this to a recent year to be less greedy. You script will run quickly through all the stations that way. Change it to earlier years as you need older/more data.
+
+## Known issues
 Clear!
