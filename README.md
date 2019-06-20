@@ -58,7 +58,9 @@ The whole dataset is huge. It takes hours to download every single page (every t
 
 The call to process_station_month() needs to be parameterized to process only pages with a given coverage status. This defaults to `want_covered = ['bare', 'unknown']`. This means that the script will process pages that are known to be not covered yet (bare) and pages that are unknown (this could mean anything, except we did not keep track).
 
-In order to skip those pages, remove these coverage types fom the list and replace with different types. The parameter `want_covered = ['incomplete']` indicates you are only interested in updating pages the script has seen before, but were tracked as incomplete. This applies (in most cases) to pages of the current month. Those are still filling up hour by hour. Older pages might also have data holes in them, but (as of the current version) chaudfontaine ignores those holes. In the DBthose records will simply be missing. There are no NaN values in the DB.
+In order to skip those pages, remove these coverage types fom the list and replace with different types. The parameter `want_covered = ['incomplete']` indicates you are only interested in updating pages the script has seen before, but were tracked as incomplete. This applies (in most cases) to pages of the current month. Those are still filling up hour by hour. Older pages might also have data holes in them, but (as of the current version) chaudfontaine ignores those holes. In the DB those records will simply be missing. There are no NaN values in the DB.
+
+If you need to redownload some page for whatever reason, you could set `want_covered = ['covered']` and call process_station_month() directly.
 
 ### Being nice to the webserver
 The constant SLEEPTIME adjusts a waiting period in between pages. This is my wayof being nice to the nice people operating the webserver. Courtesy from one server admin to another.
