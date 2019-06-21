@@ -65,7 +65,7 @@ QUANTITY_CODES = {
     'hauteur': '1011',
 }
 
-SLEEPTIME = 0.5 # seconds
+SLEEPTIME = 0.1 # seconds
 
 CONNECTION_DETAILS_MEASUREMENT = "dbname='meuse' user='postgres' password='password' host='localhost' port='5333'"
 CONNECTION_DETAILS_STATION = "dbname='meuse' user='postgres' password='password' host='localhost' port='5222'"
@@ -327,6 +327,7 @@ def create_table_measurement(connection_details=CONNECTION_DETAILS_MEASUREMENT):
     # conn.commit()
     # print('table wallonie.measurement cleared')
 
+
     columns = [
         "datetime timestamp without time zone NOT NULL",
         "station_code integer NOT NULL",
@@ -348,6 +349,16 @@ def create_table_measurement(connection_details=CONNECTION_DETAILS_MEASUREMENT):
     cursor.execute(q)
     conn.commit()
     print(f"table {table_name} created")
+
+    # https://docs.timescale.com/v1.3/api#hypertable-management
+    #   meuse=# SELECT * FROM  create_hypertable('wallonie.measurement', 'datetime', migrate_data => true) ;
+    q = f"SELECT * FROM create_hypertable('{table_name}', 'datetime') ;"
+    print(q)
+    cursor.execute(q)
+    print(cursor.fetchall())
+    conn.commit()
+    print(f"table {table_name} created")
+
     cursor.close()
     conn.close()
     print("connection closed")
@@ -586,8 +597,8 @@ data_coverage = init_data_coverage()
 for station_type in QUANTITY_CODES.keys():
     process_meuse_alltime(
         station_type, 
-        earliest_year=2009, 
-        want_covered=['bare', 'unknown', 'incomplete'],
+        earliest_year=2006,
+        want_covered=['bare', 'unknown'],
     )
  
 save_data_coverage(data_coverage)
