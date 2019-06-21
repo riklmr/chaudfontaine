@@ -586,8 +586,8 @@ data_coverage = init_data_coverage()
 for station_type in QUANTITY_CODES.keys():
     process_meuse_alltime(
         station_type, 
-        earliest_year=2012, 
-        want_covered=['bare', 'unknown'],
+        earliest_year=2009, 
+        want_covered=['bare', 'unknown', 'incomplete'],
     )
  
 save_data_coverage(data_coverage)
