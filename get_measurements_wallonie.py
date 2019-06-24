@@ -153,6 +153,26 @@ def get_stations_db(station_type, connection_details=CONNECTION_DETAILS_STATION)
     # print("connection closed")
     return stations_df
 
+def get_quantity_ids_db(connection_details=CONNECTION_DETAILS_MEASUREMENT):
+    """
+    Returns a dict translating quantity names (precipitation, hauteur, debit) to their corresponding
+    ids, as used in the measurement table.
+
+    SQL:
+    SELECT name, id FROM wallonie.quantity
+    WHERE aggr_period = 3600;
+    """
+
+    # UNDER CONSTRUCTION, will/should return in my case:
+    quantity_ids = {
+        'precipitation': 4,
+        'hauteur': 5,
+        'debit': 6
+    }
+
+    return quantity_ids
+
+
 def build_url_StatHoraireTab(station_type, station_code, year=None, month=None):
     """
     Returns the URL for the correct page, given:
@@ -319,52 +339,111 @@ def create_table_measurement(connection_details=CONNECTION_DETAILS_MEASUREMENT):
     conn = psycopg2.connect(connection_details)
     cursor = conn.cursor()
     print("connected to database meuse")
+    table_name = f"wallonie.measurement"
 
-    # q = """
-    #     DROP TABLE IF EXISTS wallonie.measurement;
+    # q = f"""
+    #     DROP TABLE IF EXISTS {table_name};
     #     """
     # cursor.execute(q)
     # conn.commit()
-    # print('table wallonie.measurement cleared')
+    # print(f"table {table_name} cleared")
+    
 
+    q = f"""
+        CREATE TABLE {table_name}
+        (
+            datetime timestamp without time zone NOT NULL,
+            station_code integer NOT NULL,
+            quantity_id integer NOT NULL,
+            value numeric NOT NULL,
+            CONSTRAINT measurement_pkey PRIMARY KEY (datetime, station_code, quantity_id)
+        )
+        ;
+        """
 
-    columns = [
-        "datetime timestamp without time zone NOT NULL",
-        "station_code integer NOT NULL",
-        "quantity character(32) NOT NULL",
-        "value numeric NOT NULL",
-        "aggr_period integer NOT NULL",
-    ]
+    """
+        ALTER TABLE wallonie.measurement
+        ADD CONSTRAINT quantity_id_fkey FOREIGN KEY (quantity_id)
+        REFERENCES wallonie.quantity (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION;
 
-    table_name = f"wallonie.measurement"
-    q = f"CREATE TABLE IF NOT EXISTS {table_name}\n"
-    q += "(\n"
-    q += ",\n".join(columns)
-    q += ",\n"
-    q += "PRIMARY KEY(datetime, station_code, quantity)\n"
-    q += ")\n"
-    q += ";"
-
+    """
     print(q)
     cursor.execute(q)
     conn.commit()
     print(f"table {table_name} created")
 
     # https://docs.timescale.com/v1.3/api#hypertable-management
-    #   meuse=# SELECT * FROM  create_hypertable('wallonie.measurement', 'datetime', migrate_data => true) ;
+    #    SELECT * FROM  create_hypertable('wallonie.measurement', 'datetime', migrate_data => true) ;
     q = f"SELECT * FROM create_hypertable('{table_name}', 'datetime') ;"
     print(q)
     cursor.execute(q)
     print(cursor.fetchall())
     conn.commit()
-    print(f"table {table_name} created")
+    print(f"hypertable for {table_name} created")
 
     cursor.close()
     conn.close()
     print("connection closed")
     #
 
-def insert_records_measurement(X, station_type, station_code, year, month, connection_details=CONNECTION_DETAILS_MEASUREMENT):
+def create_table_quantity(connection_details=CONNECTION_DETAILS_MEASUREMENT):
+    """
+    Creates the reference table for quantity.
+    """
+    conn = psycopg2.connect(connection_details)
+    cursor = conn.cursor()
+    print("connected to database meuse")
+
+    table_name = "wallonie.quantity"
+
+    # q = f"""
+    #     DROP TABLE IF EXISTS {table_name};
+    #     """
+    # cursor.execute(q)
+    # conn.commit()
+    # print(f"table {table_name} cleared")
+
+    q = f"""
+        CREATE TABLE IF NOT EXISTS {table_name}
+        (
+            id serial NOT NULL DEFAULT,
+            name character varying NOT NULL,
+            aggr_period integer NOT NULL,
+            description character varying,
+            CONSTRAINT quantity_pkey PRIMARY KEY (id)
+        )
+    """
+
+    print(q)
+    cursor.execute(q)
+    conn.commit()
+    print(f"table {table_name} created")
+
+
+    ## populating the table
+    q = f"""
+        INSERT INTO {table_name} (name, aggr_period)
+        VALUES
+        """
+    v = []
+    for quantity_name in QUANTITY_CODES.keys():
+        v.append(f"({quantity_name}), 3600)")
+
+    q += ",\n".join(v)
+    q += ";"
+    print(q)
+    cursor.execute(q)
+    conn.commit()
+    print(f"table {table_name} populated")
+        
+    cursor.close()
+    conn.close()
+    print("connection closed")
+    #
+
+def insert_records_measurement(X, station_type, station_code, year, month, connection_details=CONNECTION_DETAILS_MEASUREMENT, **kwargs):
     """
     Takes a dict with a month worth of measurements (created by parseMeasurements()),
     stores them in a chronological Postgres Database.
@@ -376,35 +455,19 @@ def insert_records_measurement(X, station_type, station_code, year, month, conne
         month: (string or integer)
     """
     # table_name = "wallonie.measurement"
+    quantity_id = quantity_ids[station_type]
 
     conn = psycopg2.connect(connection_details)
     cursor = conn.cursor()
     # print("connected to database meuse")
 
-    # print("start inserting/updating measurements")
-    # into = ['datetime', 'station_code', 'quantity', 'value', 'aggr_period']
-    # values = ["%(datetime)s", "%(station_code)s", "%(quantity)s", "%(value)s", "%(aggr_period)s"]
-    # update = []
-    # for column_name in into:
-    #     update.append(f"{column_name} = EXCLUDED.{column_name}")
-
-    # q = ""
-    # q += f"INSERT INTO {table_name}\n"
-    # q += f"({', '.join(into)})\n"
-    # q += f"VALUES ({', '.join(values)})\n"
-    # q += f"ON CONFLICT (code) DO\n"
-    # q += f"    UPDATE SET\n"
-    # q += f"        {', '.join(update)}\n"
-    # q += ";"
-
-
     q = """
         INSERT INTO wallonie.measurement
-        (datetime, station_code, quantity, value, aggr_period)
-        VALUES (%(datetime)s, %(station_code)s, %(quantity)s, %(value)s, %(aggr_period)s)
-        ON CONFLICT (datetime, station_code, quantity) DO
+        (datetime, station_code, quantity_id, value)
+        VALUES (%(datetime)s, %(station_code)s, %(quantity_id)s, %(value)s)
+        ON CONFLICT (datetime, station_code, quantity_id) DO
             UPDATE SET
-                datetime = EXCLUDED.datetime, station_code = EXCLUDED.station_code, quantity = EXCLUDED.quantity, value = EXCLUDED.value, aggr_period = EXCLUDED.aggr_period
+                datetime = EXCLUDED.datetime, station_code = EXCLUDED.station_code, quantity_id = EXCLUDED.quantity_id, value = EXCLUDED.value
         ;
     """
 
@@ -414,9 +477,8 @@ def insert_records_measurement(X, station_type, station_code, year, month, conne
         v = {
             'datetime': datetime_string,
             'station_code': station_code,
-            'quantity': station_type,
+            'quantity_id': quantity_id,
             'value': X[datetime_string],
-            'aggr_period': 3600,
         }
         cursor.execute(q, v)
         row_counter += 1
@@ -510,6 +572,7 @@ def process_station_month(station_type, station_code, year, month, want_covered=
     Parameters: station_type, station_code, year, month,
         want_covered: list of coverage states that the user wants to cover, 
         defaults to ['bare', 'unknown'].
+    Returns updated data_coverage status.
     """
     # serialize four vars into a key for dict data_coverage
     coverage_key = "{}-{}-{}-{}".format(station_type, station_code, year, month)
@@ -583,23 +646,23 @@ def process_station_alltime(station_type, station_code, **kwargs):
 
 # test parameters
 station_type = 'debit'
-station_code = 5572
+station_code = 6526
 year = 2019
 month = 6
 
 data_coverage = init_data_coverage()
-
+quantity_ids = get_quantity_ids_db()
 
 # process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown', 'incomplete'])
 
-# process_station_alltime(station_type, station_code, earliest_year = 1980, want_covered=['incomplete'])
+process_station_alltime(station_type, station_code, earliest_year = 2000, want_covered=['bare', 'unknown'])
 
-for station_type in QUANTITY_CODES.keys():
-    process_meuse_alltime(
-        station_type, 
-        earliest_year=2006,
-        want_covered=['bare', 'unknown'],
-    )
+# for station_type in QUANTITY_CODES.keys():
+#     process_meuse_alltime(
+#         station_type, 
+#         earliest_year=2003,
+#         want_covered=['bare', 'unknown'],
+#     )
  
 save_data_coverage(data_coverage)
 
