@@ -172,7 +172,6 @@ def get_quantity_ids_db(connection_details=CONNECTION_DETAILS_MEASUREMENT):
 
     return quantity_ids
 
-
 def build_url_StatHoraireTab(station_type, station_code, year=None, month=None):
     """
     Returns the URL for the correct page, given:
@@ -204,6 +203,7 @@ def retrieveStatHoraireTab(url):
     # define a request object
     print(url)
     req = Request(url)
+    time.sleep(SLEEPTIME) # courtesy to the webserver
     try:
         # open the http connection with the server
         urlopen(req)
@@ -548,7 +548,6 @@ def etl_station_month(station_type, station_code, year, month, **kwargs):
 
     url = build_url_StatHoraireTab(station_type=station_type, station_code=station_code, year=year, month=month)
     soup = retrieveStatHoraireTab(url)
-    time.sleep(SLEEPTIME) # courtesy to the webserver
 
     if soup:
         if access_authorized(soup):
@@ -617,7 +616,6 @@ def process_meuse_alltime(station_type, **kwargs):
     """
     for station_code in all_stations_meuse(station_type):
         process_station_alltime(station_type=station_type, station_code=station_code, **kwargs)
-        save_data_coverage(data_coverage)
     #
 
 def process_station_alltime(station_type, station_code, **kwargs):
@@ -634,6 +632,7 @@ def process_station_alltime(station_type, station_code, **kwargs):
         calendar = makeCalendar(start_date=start_date, end_date=end_date, earliest_year=earliest_year)
         for (year, month) in calendar:
             process_station_month(station_type=station_type, station_code=station_code, year=year, month=month, **kwargs)
+        save_data_coverage(data_coverage)
     else:
         print("no soup found, no calendar created for", station_type, station_code, file=sys.stderr)
     #
@@ -655,15 +654,14 @@ quantity_ids = get_quantity_ids_db()
 
 # process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown', 'incomplete'])
 
-process_station_alltime(station_type, station_code, earliest_year = 2000, want_covered=['bare', 'unknown'])
+# process_station_alltime(station_type, station_code, earliest_year = 2000, want_covered=['bare', 'unknown'])
 
-# for station_type in QUANTITY_CODES.keys():
-#     process_meuse_alltime(
-#         station_type, 
-#         earliest_year=2003,
-#         want_covered=['bare', 'unknown'],
-#     )
+for station_type in QUANTITY_CODES.keys():
+    process_meuse_alltime(
+        station_type, 
+        earliest_year=2002,
+        want_covered=['bare', 'unknown'],
+    )
  
 save_data_coverage(data_coverage)
-
 
