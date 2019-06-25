@@ -2,7 +2,7 @@
 chaudfontaine
 Harvest river measurements from stations in Wallonia. 
 
-This Python 3 script:
+This Python 3 module:
 - E - scrapes info from voies-hydrauliques.wallonie.be
 - T - transforms html table into a dict
 - L - stores the data chronologically in a PostgreSQL (TimescaleDB)
