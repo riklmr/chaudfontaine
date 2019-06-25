@@ -33,9 +33,9 @@ class DataCoverage:
     DataCoverage tracks coverage of data in our TimescaleDB.
     """
 
-    DATA_COVERAGE_FILENAME = 'data_coverage.pickle'
+    DEFAULT_FILENAME = 'data_coverage.pickle'
 
-    def __init__(self, filename=DATA_COVERAGE_FILENAME):
+    def __init__(self, filename=DEFAULT_FILENAME):
         """
         Initializes and returns a pickled dict to store status of data coverage
         in our TimescaleDB.
@@ -161,7 +161,7 @@ class Chaudfontaine:
     (recent_year, recent_month) = time.localtime(time.time() - TIME_MARGIN)[0:2]
     (soon_year, soon_month) = time.localtime(time.time() + TIME_MARGIN)[0:2]
 
-    def __init__(self, filename):
+    def __init__(self, filename=DataCoverage.DEFAULT_FILENAME):
         """
         Parameters:
             filename: where to store the data_coverage dict.
@@ -256,7 +256,7 @@ class Chaudfontaine:
         soup = None
         # we ask the website for printable output (xt=prt) because it is cleaner and easier to parse
         # define a request object
-        print(url)
+        # print(url)
         req = Request(url)
         time.sleep(self.SLEEPTIME) # courtesy to the webserver
         try:
@@ -264,9 +264,9 @@ class Chaudfontaine:
             urlopen(req)
         # catch a few observed exceptions
         except HTTPError as e:
-            print('skipping {url} cuz http Error code: ', e.code)
+            print('skipping {url} cuz http Error code: ', e.code, file=sys.stderr)
         except URLError as e:
-            print('skipping {url} cuz url Reason: ', e.reason)
+            print('skipping {url} cuz url Reason: ', e.reason, file=sys.stderr)
         else:
             # read the raw html from the connection (sauce in BeautifulSoup parlance)
             sauce = urlopen(url).read()
@@ -548,12 +548,13 @@ class Chaudfontaine:
         #
         return True
 
-    def makeCalendar(self, start_date, end_date, earliest_year=1950):
+    def makeCalendar(self, start_date, end_date, earliest_year=1965):
         """
         Returns a list of tuples (year as int, month as int) containing 
         all year/month combinations between start_date and end_date, including.
-        Parameters: start_date, end_date as ISO strings.
-        earliest_year (int): indicates the earliest year we want to scrape
+        Parameters: 
+            start_date, end_date as ISO strings.
+            earliest_year (int): indicates the earliest year we want to scrape
             this prevents scraping of VERY DEEP archives
         """
         [[start_year, start_month]] = re.findall(r"^(\d\d\d\d)\/(\d\d)\/", start_date)
@@ -614,9 +615,26 @@ class Chaudfontaine:
                 coverage = 'bare'
         else:
             print("no measurements for", station_type, station_code, year, month, file=sys.stderr)
-            coverage = 'unknown'
+            # for some reason we did not get any soup, but we know the page does exist
+            # we need to take note the this page needs another visit when the internets are working again
+            coverage = 'bare'
         #
         return coverage
+
+    def process_station_period(self, station_type, station_code):
+        """
+        Retrieves and returns period of data availability on the webserver.
+        """
+
+        # when we omit year and month, the server will return the current month
+        # that is irrelevant for this task, we just want the bit with "Période"
+        url = self.build_url_StatHoraireTab(station_type=station_type, station_code=station_code)
+        soup = self.retrieveStatHoraireTab(url)
+        if soup:
+            [start_date, end_date] = self.parsePeriod(soup)
+        else:
+            [start_date, end_date] = (None, None)
+        return (start_date, end_date)
 
     def process_station_month(self, station_type, station_code, year, month, want_covered=['bare', 'unknown'], **kwargs):
         """
@@ -678,10 +696,8 @@ class Chaudfontaine:
         Performs ETL on one station, for all available year/months.
         Parameters: station_type (str), station_code (int or str).
         """
-        url = self.build_url_StatHoraireTab(station_type=station_type, station_code=station_code)
-        soup = self.retrieveStatHoraireTab(url)
-        if soup:
-            [start_date, end_date] = self.parsePeriod(soup)
+        [start_date, end_date] = self.process_station_period(station_type, station_code)
+        if start_date and end_date:
             if 'earliest_year' in kwargs.keys():
                 earliest_year = kwargs['earliest_year']
             calendar = self.makeCalendar(start_date=start_date, end_date=end_date, earliest_year=earliest_year)
@@ -689,8 +705,7 @@ class Chaudfontaine:
                 self.process_station_month(station_type=station_type, station_code=station_code, year=year, month=month, **kwargs)
             self.data_coverage.save()
         else:
-            print("no soup found, no calendar created for", station_type, station_code, file=sys.stderr)
-        #
+            print("no soup found, skipping station:", station_type, station_code, file=sys.stderr)        #
 
 
 

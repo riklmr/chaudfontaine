@@ -1,4 +1,4 @@
-
+# just trying out the newe OO stuph
 import chaudfontaine
 
 etl = chaudfontaine.Chaudfontaine(filename='tr_class_dc.pickle')
@@ -15,10 +15,10 @@ etl = chaudfontaine.Chaudfontaine(filename='tr_class_dc.pickle')
 # )
 
 
-etl.process_station_alltime(
-    station_type='hauteur', 
-    station_code=2536, 
-    earliest_year = 2018, 
-    want_covered=['bare', 'unknown']
-)
+# etl.process_station_alltime(
+#     station_type='hauteur', 
+#     station_code=2536, 
+#     earliest_year = 2018, 
+#     want_covered=['bare', 'unknown']
+# )
 

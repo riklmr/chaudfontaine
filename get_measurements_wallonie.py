@@ -9,30 +9,34 @@ Change earliest_year to earlier years as you need more/older data.
 """
 
 import chaudfontaine
-etl = chaudfontaine.Chaudfontaine(filename='data_coverage.pickle')
+etl = chaudfontaine.Chaudfontaine()
 
 # example combos:
-# hauteur: 2536
+# hauteur: 2536, 8221 (Gendron/Lesse, very old station)
 # debit: 6526
 # precipitation: 5649
 
-# test parameters
-station_type = 'debit'
-station_code = 6526
-year = 2019
-month = 6
+# etl.process_station_month(
+#     station_type='hauteur', 
+#     station_code=2536, 
+#     year=2019, 
+#     month=6, 
+#     want_covered=['bare', 'unknown', 'incomplete']
+# )
 
+# etl.process_station_alltime(
+#     station_type='hauteur', 
+#     station_code=8221, 
+#     earliest_year = 1965, 
+#     want_covered=['bare', 'unknown']
+# )
 
-etl.process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown', 'incomplete'])
-
-etl.process_station_alltime(station_type, station_code, earliest_year = 2000, want_covered=['bare', 'unknown'])
-
-# for station_type in chaudfontaine.QUANTITY_CODES.keys():
-#     etl.process_meuse_alltime(
-#         station_type=station_type, 
-#         earliest_year=1980,
-#         want_covered=['bare', 'unknown'],
-#     )
+for station_type in etl.QUANTITY_CODES.keys():
+    etl.process_meuse_alltime(
+        station_type=station_type, 
+        earliest_year=1965,
+        want_covered=['bare', 'unknown'],
+    )
 
 etl.data_coverage.save()
 
