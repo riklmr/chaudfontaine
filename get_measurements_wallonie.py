@@ -9,6 +9,7 @@ Change earliest_year to earlier years as you need more/older data.
 """
 
 import chaudfontaine
+etl = chaudfontaine.Chaudfontaine(filename='data_coverage.pickle')
 
 # example combos:
 # hauteur: 2536
@@ -22,16 +23,16 @@ year = 2019
 month = 6
 
 
-chaudfontaine.process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown', 'incomplete'])
+etl.process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown', 'incomplete'])
 
-chaudfontaine.process_station_alltime(station_type, station_code, earliest_year = 2000, want_covered=['bare', 'unknown'])
+etl.process_station_alltime(station_type, station_code, earliest_year = 2000, want_covered=['bare', 'unknown'])
 
 # for station_type in chaudfontaine.QUANTITY_CODES.keys():
-#     chaudfontaine.process_meuse_alltime(
+#     etl.process_meuse_alltime(
 #         station_type=station_type, 
 #         earliest_year=1980,
 #         want_covered=['bare', 'unknown'],
 #     )
 
-# chaudfontaine.save_data_coverage(data_coverage)
+etl.data_coverage.save()
 
