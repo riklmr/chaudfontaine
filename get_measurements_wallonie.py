@@ -1,14 +1,31 @@
-import pandas as pd
-import numpy as np
+"""
+chaudfontaine
+Harvest river measurements from stations in Wallonia. 
+
+This Python 3 script:
+- E - scrapes info from voies-hydrauliques.wallonie.be
+- T - transforms html table into a dict
+- L - stores the data chronologically in a PostgreSQL (TimescaleDB)
+
+Additionally: 
+- creates necessary tables in PostgreSQL
+
+The software has a [Github repo here](https://github.com/riklmr/chaudfontaine).
+"""
+
+
+import json
+import re
+import sys, os
 import time
-import bs4 as bs
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
-import re
-import json
-import psycopg2
-import sys, os
+
+import bs4 as bs
+import numpy as np
+import pandas as pd
 import pickle
+import psycopg2
 
 # the following strings represent Walloon rivers in the Meuse Watershed
 MEUSE_WATERSHED = [
@@ -638,6 +655,9 @@ def process_station_alltime(station_type, station_code, **kwargs):
     #
 
 
+if __name__ != "__main__":
+    exit
+
 # example combos:
 # hauteur: 2536
 # debit: 6526
@@ -658,10 +678,10 @@ quantity_ids = get_quantity_ids_db()
 
 for station_type in QUANTITY_CODES.keys():
     process_meuse_alltime(
-        station_type, 
-        earliest_year=2002,
+        station_type=station_type, 
+        earliest_year=1980,
         want_covered=['bare', 'unknown'],
     )
- 
+
 save_data_coverage(data_coverage)
 
