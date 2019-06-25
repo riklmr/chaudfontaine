@@ -646,8 +646,16 @@ class Chaudfontaine:
             defaults to ['bare', 'unknown'].
         Returns updated data_coverage status.
         """
+
+        if year == None:
+            year=time.localtime().tm_year
+        
+        if month == None:
+            month=time.localtime().tm_month
+
         # serialize four vars into a key for dict data_coverage
         coverage_key = "{}-{}-{}-{}".format(station_type, station_code, year, month)
+        print(coverage_key)
 
         if self.data_coverage.is_tracked(coverage_key):
             old_coverage = self.data_coverage.get_status(coverage_key)
