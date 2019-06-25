@@ -22,7 +22,6 @@ year = 2019
 month = 6
 
 
-
 chaudfontaine.process_station_month(station_type, station_code, year, month, want_covered=['bare', 'unknown', 'incomplete'])
 
 chaudfontaine.process_station_alltime(station_type, station_code, earliest_year = 2000, want_covered=['bare', 'unknown'])
@@ -34,5 +33,5 @@ chaudfontaine.process_station_alltime(station_type, station_code, earliest_year 
 #         want_covered=['bare', 'unknown'],
 #     )
 
-
+# chaudfontaine.save_data_coverage(data_coverage)
 

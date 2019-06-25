@@ -655,3 +655,4 @@ def process_station_alltime(station_type, station_code, **kwargs):
 
 data_coverage = init_data_coverage()
 quantity_ids = get_quantity_ids_db()
+
