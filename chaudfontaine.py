@@ -390,7 +390,9 @@ class Chaudfontaine:
     def create_table_measurement(self, connection_details=CONNECTION_DETAILS_MEASUREMENT):
         """
         Creates the TimescaleDB table for measurements.
+        DISABLED because BROKEN (probably).
         """
+        return
         conn = psycopg2.connect(connection_details)
         cursor = conn.cursor()
         print("connected to database meuse")
@@ -446,7 +448,9 @@ class Chaudfontaine:
     def create_table_quantity(self, connection_details=CONNECTION_DETAILS_MEASUREMENT):
         """
         Creates the reference table for quantity.
+        DISABLED because BROKEN (probably).
         """
+        return
         conn = psycopg2.connect(connection_details)
         cursor = conn.cursor()
         print("connected to database meuse")
