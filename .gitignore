@@ -105,5 +105,5 @@ venv.bak/
 
 # rik
 data_coverage.pickle
-
+.vscode/
 
