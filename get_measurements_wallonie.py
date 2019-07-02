@@ -26,15 +26,15 @@ etl = chaudfontaine.Chaudfontaine()
 # )
 
 ## Update current month (in your local tz), for all Meuse stations
-for station_type in etl.QUANTITY_CODES.keys():
-    etl.process_meuse_month(
-        station_type=station_type, 
-        year=None, 
-        month=None, 
-        want_covered=['bare', 'unknown', 'incomplete']
-    )
+#for station_type in etl.QUANTITY_CODES.keys():
+#    etl.process_meuse_month(
+#        station_type=station_type, 
+#        year=None, 
+#        month=None, 
+#        want_covered=['bare', 'unknown', 'incomplete']
+#    )
 
-## Download, for one stations; the months (since earliest_year) that were not downloaded before
+## Download, for one station; the months (since earliest_year) that were not downloaded before
 # etl.process_station_alltime(
 #     station_type='hauteur', 
 #     station_code=8221, 
@@ -42,13 +42,21 @@ for station_type in etl.QUANTITY_CODES.keys():
 #     want_covered=['bare', 'unknown']
 # )
 
+## Download, for all Meuse stations; the months (since earliest_year) that were not downloaded before or incomplete
+for station_type in etl.QUANTITY_CODES.keys():
+     etl.process_meuse_alltime(
+         station_type=station_type, 
+         earliest_year=2019,
+         want_covered=['bare', 'unknown', 'incomplete'],
+     )
+
 ## Download, for all Meuse stations; the months (since earliest_year) that were not downloaded before
 # for station_type in etl.QUANTITY_CODES.keys():
-#     etl.process_meuse_alltime(
-#         station_type=station_type, 
-#         earliest_year=2019,
-#         want_covered=['bare', 'unknown'],
-#     )
+#      etl.process_meuse_alltime(
+#          station_type=station_type, 
+#          earliest_year=2019,
+#          want_covered=['bare', 'unknown'],
+#      )
 
 etl.data_coverage.save()
 
