@@ -176,12 +176,10 @@ class Chaudfontaine:
         station_type (string): key into QUANTITY_CODES
         """
 
-        table_name = f"wallonie.station_{station_type}"
-        # fields is a list of required column names
-        # SQL will ORDER BY the first field
-        # returned df will be indexed by the first field
+        # table_name = f"wallonie.station_{station_type}"
+
         fields = ['code', 'name', 'river', 'x', 'y']
-        columns = ", ".join(fields)
+        # columns = ", ".join(fields)
 
         conn = psycopg2.connect(connection_details)
         cursor = conn.cursor()
@@ -189,8 +187,9 @@ class Chaudfontaine:
 
         # print("start selecting stations")
         q = f"""
-            SELECT {columns} FROM {table_name}
-            ORDER BY {fields[0]} ASC
+            SELECT code, name, river, x, y FROM wallonie.station
+            WHERE type = '{station_type}'
+            ORDER BY code ASC
             LIMIT 10000;
             """
         cursor.execute(q)
@@ -386,121 +385,6 @@ class Chaudfontaine:
                         X[datetime_string] = float(measurement.text)
         #
         return X
-
-    def create_table_measurement(self, connection_details=CONNECTION_DETAILS_MEASUREMENT):
-        """
-        Creates the TimescaleDB table for measurements.
-        DISABLED because BROKEN (probably).
-        """
-        return
-        conn = psycopg2.connect(connection_details)
-        cursor = conn.cursor()
-        print("connected to database meuse")
-        table_name = f"wallonie.measurement"
-
-        # q = f"""
-        #     DROP TABLE IF EXISTS {table_name};
-        #     """
-        # cursor.execute(q)
-        # conn.commit()
-        # print(f"table {table_name} cleared")
-        
-
-        q = f"""
-            CREATE TABLE {table_name}
-            (
-                datetime timestamp without time zone NOT NULL,
-                station_code integer NOT NULL,
-                quantity_id integer NOT NULL,
-                value numeric NOT NULL,
-                CONSTRAINT measurement_pkey PRIMARY KEY (datetime, station_code, quantity_id)
-            )
-            ;
-            """
-
-        """
-            ALTER TABLE wallonie.measurement
-            ADD CONSTRAINT quantity_id_fkey FOREIGN KEY (quantity_id)
-            REFERENCES wallonie.quantity (id) MATCH SIMPLE
-            ON UPDATE NO ACTION
-            ON DELETE NO ACTION;
-
-        """
-        print(q)
-        cursor.execute(q)
-        conn.commit()
-        print(f"table {table_name} created")
-
-        # https://docs.timescale.com/v1.3/api#hypertable-management
-        #    SELECT * FROM  create_hypertable('wallonie.measurement', 'datetime', migrate_data => true) ;
-        q = f"SELECT * FROM create_hypertable('{table_name}', 'datetime') ;"
-        print(q)
-        cursor.execute(q)
-        print(cursor.fetchall())
-        conn.commit()
-        print(f"hypertable for {table_name} created")
-
-        cursor.close()
-        conn.close()
-        print("connection closed")
-        #
-
-    def create_table_quantity(self, connection_details=CONNECTION_DETAILS_MEASUREMENT):
-        """
-        Creates the reference table for quantity.
-        DISABLED because BROKEN (probably).
-        """
-        return
-        conn = psycopg2.connect(connection_details)
-        cursor = conn.cursor()
-        print("connected to database meuse")
-
-        table_name = "wallonie.quantity"
-
-        # q = f"""
-        #     DROP TABLE IF EXISTS {table_name};
-        #     """
-        # cursor.execute(q)
-        # conn.commit()
-        # print(f"table {table_name} cleared")
-
-        q = f"""
-            CREATE TABLE IF NOT EXISTS {table_name}
-            (
-                id serial NOT NULL DEFAULT,
-                name character varying NOT NULL,
-                aggr_period integer NOT NULL,
-                description character varying,
-                CONSTRAINT quantity_pkey PRIMARY KEY (id)
-            )
-        """
-
-        print(q)
-        cursor.execute(q)
-        conn.commit()
-        print(f"table {table_name} created")
-
-
-        ## populating the table
-        q = f"""
-            INSERT INTO {table_name} (name, aggr_period)
-            VALUES
-            """
-        v = []
-        for quantity_name in self.QUANTITY_CODES.keys():
-            v.append(f"({quantity_name}), 3600)")
-
-        q += ",\n".join(v)
-        q += ";"
-        print(q)
-        cursor.execute(q)
-        conn.commit()
-        print(f"table {table_name} populated")
-            
-        cursor.close()
-        conn.close()
-        print("connection closed")
-        #
 
     def insert_records_measurement(self, X, station_type, station_code, year, month, connection_details=CONNECTION_DETAILS_MEASUREMENT, **kwargs):
         """
