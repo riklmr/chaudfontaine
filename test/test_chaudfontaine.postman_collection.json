@@ -1,0 +1,45 @@
+{
+	"info": {
+		"_postman_id": "d7cc6566-b2cf-41e9-ae3b-86d7132eb85f",
+		"name": "test_chaudfontaine",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "http://voies-hydrauliques.wallonie.be/opencms/opencms/fr/hydro/Actuelle/crue/mesure.jsp?code=95960015",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "http://voies-hydrauliques.wallonie.be/opencms/opencms/fr/hydro/Actuelle/crue/mesure.jsp?code=95960015",
+					"protocol": "http",
+					"host": [
+						"voies-hydrauliques",
+						"wallonie",
+						"be"
+					],
+					"path": [
+						"opencms",
+						"opencms",
+						"fr",
+						"hydro",
+						"Actuelle",
+						"crue",
+						"mesure.jsp"
+					],
+					"query": [
+						{
+							"key": "code",
+							"value": "95960015"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
