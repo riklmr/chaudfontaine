@@ -107,3 +107,4 @@ venv.bak/
 data_coverage.pickle
 .vscode/
 
+.DS_Store
