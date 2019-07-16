@@ -146,8 +146,8 @@ class Chaudfontaine:
 
     SLEEPTIME = 0.1 # seconds
 
-    CONNECTION_DETAILS_MEASUREMENT = "dbname='meuse' user='postgres' password='password' host='localhost' port='5333'"
-    CONNECTION_DETAILS_STATION = "dbname='meuse' user='postgres' password='password' host='localhost' port='5222'"
+    CONNECTION_DETAILS_MEASUREMENT = "dbname='meuse' user='postgres' password='password' host='localhost' port='5555'"
+    CONNECTION_DETAILS_STATION = CONNECTION_DETAILS_MEASUREMENT
 
     # In order to decide if we are dealing with a year-month still going on (implying
     # that the table cannot be complete yet), we need to know what year-month it is now.
@@ -187,8 +187,12 @@ class Chaudfontaine:
 
         # print("start selecting stations")
         q = f"""
-            SELECT code, name, river, x, y FROM wallonie.station
-            WHERE type = '{station_type}'
+            SELECT code, name, river, x, y FROM wallonie.station AS s
+            WHERE s.quantity_id = 
+            (
+                SELECT id FROM wallonie.quantity AS q
+                WHERE q.name = '{station_type}'
+            )
             ORDER BY code ASC
             LIMIT 10000;
             """
