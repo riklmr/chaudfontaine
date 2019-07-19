@@ -146,8 +146,7 @@ class Chaudfontaine:
 
     SLEEPTIME = 0.1 # seconds
 
-    CONNECTION_DETAILS_MEASUREMENT = "dbname='meuse' user='postgres' password='password' host='localhost' port='5555'"
-    CONNECTION_DETAILS_STATION = CONNECTION_DETAILS_MEASUREMENT
+    CONNECTION_DETAILS = "dbname='meuse' user='postgres' password='password' host='localhost' port='5555'"
 
     # In order to decide if we are dealing with a year-month still going on (implying
     # that the table cannot be complete yet), we need to know what year-month it is now.
@@ -169,23 +168,17 @@ class Chaudfontaine:
         self.data_coverage = DataCoverage(filename)
         self.quantity_ids = self.get_quantity_ids_db()
 
-    def get_stations_db(self, station_type, connection_details=CONNECTION_DETAILS_STATION):
+    def get_stations_db(self, station_type, connection_details=CONNECTION_DETAILS):
         """
         Returns a Pandas dataframe of stations from the database.
         Parameters:
         station_type (string): key into QUANTITY_CODES
         """
 
-        # table_name = f"wallonie.station_{station_type}"
-
         fields = ['code', 'name', 'river', 'x', 'y']
-        # columns = ", ".join(fields)
 
         conn = psycopg2.connect(connection_details)
         cursor = conn.cursor()
-        # print("connected to database meuse")
-
-        # print("start selecting stations")
         q = f"""
             SELECT code, name, river, x, y FROM wallonie.station AS s
             WHERE s.quantity_id = 
@@ -204,14 +197,11 @@ class Chaudfontaine:
         stations_df = pd.DataFrame(columns=fields, data=stations_list)
         stations_df.set_index('code', inplace=True)
 
-        # df = pd.concat([df, cursor.fetchall()])
-
         cursor.close()
         conn.close()
-        # print("connection closed")
         return stations_df
 
-    def get_quantity_ids_db(self, connection_details=CONNECTION_DETAILS_MEASUREMENT):
+    def get_quantity_ids_db(self, connection_details=CONNECTION_DETAILS):
         """
         Returns a dict translating quantity names (precipitation, hauteur, debit) to their corresponding
         ids, as used in the measurement table.
@@ -265,7 +255,7 @@ class Chaudfontaine:
         try:
             # open the http connection with the server
             urlopen(req)
-        # catch a few observed exceptions
+        # catch a few previously observed exceptions
         except HTTPError as e:
             print('skipping {url} cuz http Error code: ', e.code, file=sys.stderr)
         except URLError as e:
@@ -325,6 +315,10 @@ class Chaudfontaine:
         return((year, month))
 
     def access_authorized(self, soup):
+        """
+        Parses the soup to see if this page contains anydata we want to scrape.
+        Return a Boolean: True = page has data.
+        """
         access = True
         # <h1>Accès non autorisé</h1>
         headings = soup.find_all('h1')
@@ -351,7 +345,7 @@ class Chaudfontaine:
         Not all cells are filled for all months":
         The current month fills up as time progresses.
         All tables have 31 columns: so not all of them can be meaningfully filled.
-        Some months have holes inthe data.
+        Some months have holes in the data.
         """
 
         [year_www, month_www] = self.parseYearMonth(soup)
@@ -390,7 +384,7 @@ class Chaudfontaine:
         #
         return X
 
-    def insert_records_measurement(self, X, station_type, station_code, year, month, connection_details=CONNECTION_DETAILS_MEASUREMENT, **kwargs):
+    def insert_records_measurement(self, X, station_type, station_code, year, month, connection_details=CONNECTION_DETAILS, **kwargs):
         """
         Takes a dict with a month worth of measurements (created by parseMeasurements()),
         stores them in a chronological Postgres Database.
@@ -400,14 +394,12 @@ class Chaudfontaine:
             station_type: type of the station (string, key into QUANTITY_CODES)
             year: (string or integer)
             month: (string or integer)
+        Always returns True.
         """
-        # table_name = "wallonie.measurement"
         quantity_id = self.quantity_ids[station_type]
 
         conn = psycopg2.connect(connection_details)
         cursor = conn.cursor()
-        # print("connected to database meuse")
-
         q = """
             INSERT INTO wallonie.measurement
             (datetime, station_code, quantity_id, value)
@@ -419,7 +411,6 @@ class Chaudfontaine:
         """
 
         row_counter = 0
-
         for datetime_string in X.keys():
             v = {
                 'datetime': datetime_string,
@@ -435,9 +426,6 @@ class Chaudfontaine:
 
         cursor.close()
         conn.close()
-        # print("connection closed")
-
-        #
         return True
 
     def makeCalendar(self, start_date, end_date, earliest_year=1965):
@@ -446,8 +434,8 @@ class Chaudfontaine:
         all year/month combinations between start_date and end_date, including.
         Parameters: 
             start_date, end_date as ISO strings.
-            earliest_year (int): indicates the earliest year we want to scrape
-            this prevents scraping of VERY DEEP archives
+            earliest_year (int): indicates the earliest year we want to scrape,
+            this prevents scraping of VERY DEEP archives,
         """
         [[start_year, start_month]] = re.findall(r"^(\d\d\d\d)\/(\d\d)\/", start_date)
         [[end_year, end_month]] = re.findall(r"^(\d\d\d\d)\/(\d\d)\/", end_date)
@@ -491,6 +479,7 @@ class Chaudfontaine:
         """
         Performs ETL for one station (of one type) for one year-month.
         Parameters: station_type, station_code, year, month.
+        Returns string describing coverage of data capture, for this station-year-month.
         """
         coverage = 'unknown'
 
@@ -605,7 +594,7 @@ class Chaudfontaine:
                 self.process_station_month(station_type=station_type, station_code=station_code, year=year, month=month, **kwargs)
             self.data_coverage.save()
         else:
-            print("no soup found, skipping station:", station_type, station_code, file=sys.stderr)        #
+            print("no soup found, skipping station:", station_type, station_code, file=sys.stderr)
 
 
 
